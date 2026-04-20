@@ -1,0 +1,14 @@
+{
+  "name": "agentnet",
+  "version": "0.1.0",
+  "private": true,
+  "description": "On-chain identity & reputation registry for AI agents on Solana",
+  "scripts": {
+    "build:program": "anchor build",
+    "test:program": "anchor test",
+    "dev:api": "cd app && npm run dev",
+    "dev:web": "cd web && npm run dev",
+    "demo": "cd simulation && npm run demo",
+    "install:all": "npm install && cd app && npm install && cd ../web && npm install && cd ../simulation && npm install"
+  }
+}

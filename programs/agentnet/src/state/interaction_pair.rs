@@ -1,12 +1,13 @@
 use anchor_lang::prelude::*;
 
-/// PDA anti-farming : une paire d'agents ne genere qu'un seul point de reputation
-/// Seeds: [b"pair", agent_a.key(), agent_b.key()] (ordonnés)
+/// PDA anti-farming : une paire (requester, executor) ne genere qu'un seul point de reputation
+/// Seeds: [b"pair", requester_wallet, executor_wallet]
 #[account]
+#[derive(InitSpace)]
 pub struct InteractionPair {
-    /// Premier agent de la paire
+    /// Wallet de l'agent demandeur
     pub agent_a: Pubkey,
-    /// Second agent de la paire
+    /// Wallet de l'agent executant
     pub agent_b: Pubkey,
     /// Indique si cette paire a deja ete comptee pour la reputation
     pub already_counted: bool,

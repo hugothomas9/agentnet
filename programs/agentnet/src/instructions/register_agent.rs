@@ -12,24 +12,68 @@ pub struct RegisterAgentParams {
 #[derive(Accounts)]
 #[instruction(params: RegisterAgentParams)]
 pub struct RegisterAgent<'info> {
-    // TODO: definir les comptes necessaires
-    // - owner (signer, mut) : le proprietaire qui enregistre l'agent
-    // - agent_pda (init, PDA) : le compte Agent a creer
-    // - reputation_pda (init, PDA) : le compte Reputation a creer
-    // - nft_mint : le mint du NFT Metaplex Core
-    // - agent_wallet : le wallet Privy de l'agent
-    // - system_program
-    // - metaplex core accounts
+    /// Le proprietaire (developpeur) qui enregistre l'agent — paie les frais de creation
     #[account(mut)]
     pub owner: Signer<'info>,
+
+    /// CHECK: Le mint du NFT Metaplex Core (deja minte off-chain par le backend)
+    pub nft_mint: UncheckedAccount<'info>,
+
+    /// CHECK: L'adresse du wallet Privy de l'agent (genere par le backend)
+    pub agent_wallet: UncheckedAccount<'info>,
+
+    /// PDA Agent — derive du wallet Privy
+    #[account(
+        init,
+        payer = owner,
+        space = 8 + Agent::INIT_SPACE,
+        seeds = [b"agent", agent_wallet.key().as_ref()],
+        bump,
+    )]
+    pub agent: Account<'info, Agent>,
+
+    /// PDA Reputation — initialisee a zero
+    #[account(
+        init,
+        payer = owner,
+        space = 8 + Reputation::INIT_SPACE,
+        seeds = [b"reputation", agent_wallet.key().as_ref()],
+        bump,
+    )]
+    pub reputation: Account<'info, Reputation>,
+
     pub system_program: Program<'info, System>,
 }
 
-/// Enregistre un nouvel agent sur AgentNet
-/// 1. Mint le NFT Metaplex Core
-/// 2. Cree le PDA Agent avec les metadonnees
-/// 3. Initialise le PDA Reputation a zero
-pub fn handler(ctx: Context<RegisterAgent>, params: RegisterAgentParams) -> Result<()> {
-    // TODO: implementer
+pub(crate) fn handler(ctx: Context<RegisterAgent>, params: RegisterAgentParams) -> Result<()> {
+    let clock = Clock::get()?;
+    let agent = &mut ctx.accounts.agent;
+    let reputation = &mut ctx.accounts.reputation;
+
+    // Initialiser le PDA Agent
+    agent.nft_mint = ctx.accounts.nft_mint.key();
+    agent.owner = ctx.accounts.owner.key();
+    agent.agent_wallet = ctx.accounts.agent_wallet.key();
+    agent.name = params.name;
+    agent.version = params.version;
+    agent.capabilities = params.capabilities;
+    agent.endpoint = params.endpoint;
+    agent.status = AgentStatus::Active;
+    agent.registered_at = clock.unix_timestamp;
+    agent.bump = ctx.bumps.agent;
+
+    // Initialiser le PDA Reputation a zero
+    reputation.agent = ctx.accounts.agent_wallet.key();
+    reputation.tasks_received = 0;
+    reputation.tasks_completed = 0;
+    reputation.contests_received = 0;
+    reputation.total_execution_time = 0;
+    reputation.unique_requesters = 0;
+    reputation.tasks_delegated = 0;
+    reputation.contests_emitted = 0;
+    reputation.last_updated = clock.unix_timestamp;
+    reputation.score = 0;
+    reputation.bump = ctx.bumps.reputation;
+
     Ok(())
 }

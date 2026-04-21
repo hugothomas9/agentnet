@@ -19,7 +19,7 @@ app.use("/escrow", escrowRouter);
 app.use("/reputation", reputationRouter);
 
 app.get("/health", (_req, res) => {
-  res.json({ status: "ok", network: "devnet" });
+  res.json({ status: "ok", network: "devnet", timestamp: new Date().toISOString() });
 });
 
 app.listen(config.port, () => {

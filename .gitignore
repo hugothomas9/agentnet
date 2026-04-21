@@ -5,3 +5,6 @@ target/
 .env
 .anchor/
 test-ledger/
+
+
+lancelot/*

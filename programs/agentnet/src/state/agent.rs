@@ -1,7 +1,6 @@
 use anchor_lang::prelude::*;
 
-/// Statut d'un agent sur le reseau
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq, InitSpace)]
 pub enum AgentStatus {
     Active,
     Suspended,
@@ -9,8 +8,9 @@ pub enum AgentStatus {
 }
 
 /// PDA stockant l'identite on-chain d'un agent
-/// Seeds: [b"agent", nft_mint.key()]
+/// Seeds: [b"agent", agent_wallet.key()]
 #[account]
+#[derive(InitSpace)]
 pub struct Agent {
     /// Cle publique du NFT Metaplex Core associe
     pub nft_mint: Pubkey,
@@ -19,12 +19,16 @@ pub struct Agent {
     /// Cle publique du wallet Privy de l'agent
     pub agent_wallet: Pubkey,
     /// Nom lisible de l'agent
+    #[max_len(32)]
     pub name: String,
     /// Version de l'agent
+    #[max_len(16)]
     pub version: String,
-    /// Liste des capacites (ex: ["translate", "summarize"])
+    /// Liste des capacites (max 8 capacites de 32 chars)
+    #[max_len(8, 32)]
     pub capabilities: Vec<String>,
     /// URL de l'endpoint de l'agent
+    #[max_len(128)]
     pub endpoint: String,
     /// Statut actuel
     pub status: AgentStatus,

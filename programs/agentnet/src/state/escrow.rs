@@ -1,7 +1,6 @@
 use anchor_lang::prelude::*;
 
-/// Etat d'un escrow
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq, InitSpace)]
 pub enum EscrowStatus {
     /// SOL bloques, en attente d'execution
     AwaitingResult,
@@ -16,16 +15,19 @@ pub enum EscrowStatus {
 }
 
 /// PDA stockant un escrow entre deux agents
-/// Seeds: [b"escrow", requester.key(), executor.key(), task_id]
+/// Seeds: [b"escrow", requester_wallet, executor_wallet, task_id.as_bytes()]
 #[account]
+#[derive(InitSpace)]
 pub struct Escrow {
-    /// Agent demandeur (celui qui paie)
+    /// Wallet Privy de l'agent demandeur
     pub requester: Pubkey,
-    /// Agent executant (celui qui recoit)
+    /// Wallet Privy de l'agent executant
     pub executor: Pubkey,
     /// Identifiant unique de la tache
+    #[max_len(32)]
     pub task_id: String,
     /// Description de la tache
+    #[max_len(256)]
     pub task_description: String,
     /// Montant bloque en lamports
     pub amount: u64,

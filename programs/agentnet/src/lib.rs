@@ -6,7 +6,7 @@ pub mod state;
 
 use instructions::*;
 
-declare_id!("AGNT1111111111111111111111111111111111111111");
+declare_id!("BY89n9pF3xkZzz5GN1pfaqzZU8NMYHqfBCNAeSyFVsSd");
 
 #[program]
 pub mod agentnet {

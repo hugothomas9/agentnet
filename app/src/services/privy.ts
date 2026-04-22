@@ -14,12 +14,11 @@ export async function createAgentWallet(): Promise<{ publicKey: string; walletId
 }
 
 export async function signTransaction(walletId: string, transaction: Transaction): Promise<Transaction> {
-  const serialized = transaction.serialize({ requireAllSignatures: false, verifySignatures: false });
   const { signedTransaction } = await getClient().walletApi.solana.signTransaction({
     walletId,
-    transaction: { serialized: Buffer.from(serialized).toString("base64") },
+    transaction,
   });
-  return Transaction.from(Buffer.from(signedTransaction.serialized, "base64"));
+  return signedTransaction as Transaction;
 }
 
 export async function signMessage(walletId: string, message: Uint8Array): Promise<Uint8Array> {

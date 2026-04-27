@@ -33,7 +33,7 @@ export async function isAgentRegistered(pubkeyBase58: string): Promise<boolean> 
   }
 }
 
-export function verifyAgentSignature(req: Request, res: Response, next: NextFunction): void {
+export async function verifyAgentSignature(req: Request, res: Response, next: NextFunction): Promise<void> {
   const pubkey = req.headers["x-agent-pubkey"] as string;
   const signature = req.headers["x-signature"] as string;
   const timestampStr = req.headers["x-timestamp"] as string;
@@ -54,6 +54,12 @@ export function verifyAgentSignature(req: Request, res: Response, next: NextFunc
 
   if (!verifyEd25519Signature(pubkey, message, signature)) {
     res.status(401).json({ error: "Invalid signature" });
+    return;
+  }
+
+  const registered = await isAgentRegistered(pubkey);
+  if (!registered) {
+    res.status(401).json({ error: "Agent not registered on-chain" });
     return;
   }
 

@@ -1,11 +1,12 @@
 import { Router } from "express";
-import { PublicKey, SystemProgram } from "@solana/web3.js";
+import { PublicKey, SystemProgram, Transaction, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { verifyAgentSignature } from "../middleware/auth";
 import { createAgentWallet } from "../services/privy";
 import { mintAgentNFT } from "../services/metaplex";
 import {
   getProgram,
   getServerKeypair,
+  getConnection,
   getAgentPDA,
   getReputationPDA,
   fetchAllAgents,
@@ -94,11 +95,41 @@ agentsRouter.post("/register", async (req, res) => {
       return;
     }
 
+    const { agentWalletPubkey } = req.body as { agentWalletPubkey?: string };
+
     const serverKp = getServerKeypair();
     const owner = ownerPubkey ? new PublicKey(ownerPubkey) : serverKp.publicKey;
 
-    const { publicKey: agentWalletStr, walletId } = await createAgentWallet();
+    let agentWalletStr: string;
+    let walletId: string | undefined;
+
+    if (agentWalletPubkey) {
+      // Mode test : wallet local fourni, pas de création Privy
+      agentWalletStr = agentWalletPubkey;
+      walletId = undefined;
+    } else {
+      const privy = await createAgentWallet();
+      agentWalletStr = privy.publicKey;
+      walletId = privy.walletId;
+    }
     const agentWallet = new PublicKey(agentWalletStr);
+
+    // Mode test : finance le wallet local pour qu'il puisse payer fees + escrow
+    if (agentWalletPubkey) {
+      const connection = getConnection();
+      const fundTx = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: serverKp.publicKey,
+          toPubkey: agentWallet,
+          lamports: 0.5 * LAMPORTS_PER_SOL,
+        })
+      );
+      fundTx.feePayer = serverKp.publicKey;
+      fundTx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+      fundTx.sign(serverKp);
+      const fundSig = await connection.sendRawTransaction(fundTx.serialize());
+      await connection.confirmTransaction(fundSig, "confirmed");
+    }
 
     const nftMintAddress = await mintAgentNFT(owner.toBase58(), agentWalletStr, {
       name,
@@ -128,7 +159,7 @@ agentsRouter.post("/register", async (req, res) => {
       success: true,
       txSignature: sig,
       agentWallet: agentWalletStr,
-      walletId,
+      ...(walletId && { walletId }),
       nftMint: nftMintAddress,
       agentPda: agentPda.toBase58(),
     });

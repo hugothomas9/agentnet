@@ -6,5 +6,7 @@ target/
 .anchor/
 test-ledger/
 
+# Backups locaux d'IDL (generes automatiquement, pas utiles pour le repo)
+*.untracked-backup-*
 
 lancelot/*

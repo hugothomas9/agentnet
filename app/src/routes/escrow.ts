@@ -1,7 +1,24 @@
 import { Router } from "express";
-import { PublicKey, SystemProgram } from "@solana/web3.js";
+import { PublicKey, SystemProgram, Transaction, Keypair } from "@solana/web3.js";
+import { BN } from "@coral-xyz/anchor";
+import bs58 from "bs58";
 import { verifyAgentSignature } from "../middleware/auth";
 import { signTransaction } from "../services/privy";
+
+// Helper : signe via Privy (walletId) OU via clé locale (secretKey base58, mode test)
+async function signTx(
+  tx: Transaction,
+  walletId?: string,
+  secretKey?: string
+): Promise<Transaction> {
+  if (secretKey) {
+    const kp = Keypair.fromSecretKey(bs58.decode(secretKey));
+    tx.partialSign(kp);
+    return tx;
+  }
+  if (!walletId) throw new Error("Missing walletId or secretKey");
+  return signTransaction(walletId, tx);
+}
 import {
   getProgram,
   getServerKeypair,
@@ -20,6 +37,7 @@ escrowRouter.post("/create", verifyAgentSignature, async (req, res) => {
   try {
     const {
       requesterWalletId,
+      requesterSecretKey,
       requesterWallet,
       executorWallet,
       taskId,
@@ -28,7 +46,8 @@ escrowRouter.post("/create", verifyAgentSignature, async (req, res) => {
       deadline,
       gracePeriodDuration,
     } = req.body as {
-      requesterWalletId: string;
+      requesterWalletId?: string;
+      requesterSecretKey?: string;
       requesterWallet: string;
       executorWallet: string;
       taskId: string;
@@ -54,9 +73,9 @@ escrowRouter.post("/create", verifyAgentSignature, async (req, res) => {
       .createEscrow({
         taskId,
         taskDescription,
-        amount: BigInt(amount),
-        deadline: BigInt(deadline),
-        gracePeriodDuration: BigInt(gracePeriodDuration),
+        amount: new BN(amount),
+        deadline: new BN(deadline),
+        gracePeriodDuration: new BN(gracePeriodDuration),
       })
       .accounts({
         requester,
@@ -72,7 +91,7 @@ escrowRouter.post("/create", verifyAgentSignature, async (req, res) => {
     tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
     tx.feePayer = requester;
 
-    const signedTx = await signTransaction(requesterWalletId, tx);
+    const signedTx = await signTx(tx, requesterWalletId, requesterSecretKey);
     const sig = await connection.sendRawTransaction(signedTx.serialize());
     await connection.confirmTransaction(sig, "confirmed");
 
@@ -88,8 +107,9 @@ escrowRouter.post("/create", verifyAgentSignature, async (req, res) => {
 
 escrowRouter.post("/:id/submit", verifyAgentSignature, async (req, res) => {
   try {
-    const { executorWalletId, executorWallet, resultHash } = req.body as {
-      executorWalletId: string;
+    const { executorWalletId, executorSecretKey, executorWallet, resultHash } = req.body as {
+      executorWalletId?: string;
+      executorSecretKey?: string;
       executorWallet: string;
       resultHash: string;
     };
@@ -126,7 +146,7 @@ escrowRouter.post("/:id/submit", verifyAgentSignature, async (req, res) => {
     tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
     tx.feePayer = executor;
 
-    const signedTx = await signTransaction(executorWalletId, tx);
+    const signedTx = await signTx(tx, executorWalletId, executorSecretKey);
     const sig = await connection.sendRawTransaction(signedTx.serialize());
     await connection.confirmTransaction(sig, "confirmed");
 
@@ -183,8 +203,9 @@ escrowRouter.post("/:id/release", async (req, res) => {
 
 escrowRouter.post("/:id/contest", verifyAgentSignature, async (req, res) => {
   try {
-    const { requesterWalletId, requesterWallet } = req.body as {
-      requesterWalletId: string;
+    const { requesterWalletId, requesterSecretKey, requesterWallet } = req.body as {
+      requesterWalletId?: string;
+      requesterSecretKey?: string;
       requesterWallet: string;
     };
 
@@ -205,7 +226,7 @@ escrowRouter.post("/:id/contest", verifyAgentSignature, async (req, res) => {
     tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
     tx.feePayer = requester;
 
-    const signedTx = await signTransaction(requesterWalletId, tx);
+    const signedTx = await signTx(tx, requesterWalletId, requesterSecretKey);
     const sig = await connection.sendRawTransaction(signedTx.serialize());
     await connection.confirmTransaction(sig, "confirmed");
 

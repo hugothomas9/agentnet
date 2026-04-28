@@ -47,8 +47,11 @@ export function getEscrowPDA(requester: PublicKey, executor: PublicKey, taskId: 
 }
 
 export function getInteractionPairPDA(agentA: PublicKey, agentB: PublicKey): [PublicKey, number] {
+  const [a, b] = Buffer.compare(agentA.toBuffer(), agentB.toBuffer()) <= 0
+    ? [agentA, agentB]
+    : [agentB, agentA];
   return PublicKey.findProgramAddressSync(
-    [Buffer.from("pair"), agentA.toBuffer(), agentB.toBuffer()],
+    [Buffer.from("pair"), a.toBuffer(), b.toBuffer()],
     PROGRAM_ID
   );
 }

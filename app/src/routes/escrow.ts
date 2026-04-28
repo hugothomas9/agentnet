@@ -28,6 +28,7 @@ import {
   getEscrowPDA,
   getInteractionPairPDA,
   fetchEscrow,
+  fetchAgent,
 } from "../services/solana";
 import { config } from "../config";
 
@@ -170,7 +171,19 @@ escrowRouter.post("/:id/release", async (req, res) => {
     const [executorAgent] = getAgentPDA(executor);
     const [executorReputation] = getReputationPDA(executor);
     const [requesterReputation] = getReputationPDA(requester);
-    const [interactionPair] = getInteractionPairPDA(requester, executor);
+    // Ordonner lexicographiquement pour correspondre aux seeds du PDA
+    const [pairAgentA, pairAgentB] = Buffer.compare(requester.toBuffer(), executor.toBuffer()) <= 0
+      ? [requester, executor]
+      : [executor, requester];
+    const [interactionPair] = getInteractionPairPDA(pairAgentA, pairAgentB);
+
+    // Recuperer le owner de l'agent executant (different du agent_wallet)
+    const executorAgentData = await fetchAgent(executorAgent);
+    if (!executorAgentData) {
+      res.status(404).json({ error: "Executor agent not found on-chain" });
+      return;
+    }
+    const executorOwner = new PublicKey(executorAgentData.owner);
 
     if (!config.treasuryWallet) {
       res.status(500).json({ error: "TREASURY_WALLET not configured" });
@@ -188,8 +201,10 @@ escrowRouter.post("/:id/release", async (req, res) => {
         executorAgent,
         executorReputation,
         requesterReputation,
+        pairAgentA,
+        pairAgentB,
         interactionPair,
-        executorOwner: executor,
+        executorOwner,
         treasury: new PublicKey(config.treasuryWallet),
         systemProgram: SystemProgram.programId,
       })

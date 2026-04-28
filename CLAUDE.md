@@ -42,10 +42,16 @@ refund_escrow(ctx) -> Result<()>
 ### PDAs (seeds)
 
 ```
-Agent:           [b"agent", nft_mint]
-Escrow:          [b"escrow", requester, executor, task_id]
-Reputation:      [b"reputation", agent_pubkey]
-InteractionPair: [b"pair", agent_a, agent_b]  (cles ordonnees lexicographiquement)
+Agent:           [b"agent", agent_wallet]
+Escrow:          [b"escrow", requester_wallet, executor_wallet, task_id.as_bytes()]
+Reputation:      [b"reputation", agent_wallet]
+InteractionPair: [b"pair", min(wallet_a, wallet_b), max(wallet_a, wallet_b)]  (ordonnees lexicographiquement)
+```
+
+### Constantes
+
+```
+TREASURY: 9YkhYGQphEspcR2Pftw55174ybkpQFQmo24T72AQK2QX  (wallet recevant la commission 0.1%)
 ```
 
 ### Comptes (state)
@@ -63,6 +69,7 @@ InteractionPair { agent_a, agent_b, already_counted, first_interaction, bump }
 AgentNotRegistered | InvalidSignature | DeadlineExceeded | InvalidResult
 EscrowAlreadyResolved | InsufficientFunds | GracePeriodNotExpired
 UnauthorizedOwner | AgentInactive | CapabilityNotSupported | ContestWindowClosed
+InvalidTreasury | ArithmeticOverflow
 ```
 
 ---

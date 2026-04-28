@@ -178,7 +178,7 @@ async function scenarioHappyPath(
     taskDescription: "Analyser le dataset climate_2024.csv et produire un résumé",
     amount,
     deadline:            now + 3600,
-    gracePeriodDuration: 30,
+    gracePeriodDuration: 5,
   };
 
   const { status: s1, json: j1 } = await req(
@@ -228,6 +228,10 @@ async function scenarioHappyPath(
   check("GET /escrow/:id après submit → 200", s4 === 200);
   check("Status = grace_period",              j4?.escrow?.status === "grace_period");
   check("resultHash enregistré on-chain",     j4?.escrow?.resultHash === resultHash);
+
+  // Attendre l'expiration du delai de grace (5s + 3s de marge pour le clock on-chain)
+  console.log(`  ⏳ Attente expiration grace period (8s)...`);
+  await new Promise((resolve) => setTimeout(resolve, 8000));
 
   // 5. Release (verify_and_release — pas d'auth requise)
   const { status: s5, json: j5 } = await req("POST", `/escrow/${escrowId}/release`, {});

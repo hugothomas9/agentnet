@@ -8,6 +8,10 @@ use instructions::*;
 
 declare_id!("BY89n9pF3xkZzz5GN1pfaqzZU8NMYHqfBCNAeSyFVsSd");
 
+/// Adresse du treasury AgentNet (wallet qui recoit la commission 0.1%)
+/// A remplacer par la vraie adresse du treasury de l'equipe
+pub const TREASURY: Pubkey = pubkey!("9YkhYGQphEspcR2Pftw55174ybkpQFQmo24T72AQK2QX");
+
 #[program]
 pub mod agentnet {
     use super::*;

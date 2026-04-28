@@ -34,4 +34,10 @@ pub enum AgentNetError {
 
     #[msg("Contestation en dehors du delai de grace")]
     ContestWindowClosed,
+
+    #[msg("Adresse treasury invalide")]
+    InvalidTreasury,
+
+    #[msg("Overflow dans le calcul du delai")]
+    ArithmeticOverflow,
 }

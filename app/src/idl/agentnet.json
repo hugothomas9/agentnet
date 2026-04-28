@@ -66,6 +66,68 @@
               }
             ]
           }
+        },
+        {
+          "name": "executor_reputation",
+          "docs": [
+            "PDA Reputation de l'executant — increment contests_received"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  112,
+                  117,
+                  116,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow.executor",
+                "account": "Escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "requester_reputation",
+          "docs": [
+            "PDA Reputation du demandeur — increment contests_emitted"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  112,
+                  117,
+                  116,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow.requester",
+                "account": "Escrow"
+              }
+            ]
+          }
         }
       ],
       "args": []
@@ -699,9 +761,15 @@
           }
         },
         {
+          "name": "pair_agent_a"
+        },
+        {
+          "name": "pair_agent_b"
+        },
+        {
           "name": "interaction_pair",
           "docs": [
-            "PDA InteractionPair — anti-farming, cree si premiere interaction"
+            "PDA InteractionPair — anti-farming, seeds ordonnees lexicographiquement"
           ],
           "writable": true,
           "pda": {
@@ -717,13 +785,11 @@
               },
               {
                 "kind": "account",
-                "path": "escrow.requester",
-                "account": "Escrow"
+                "path": "pair_agent_a"
               },
               {
                 "kind": "account",
-                "path": "escrow.executor",
-                "account": "Escrow"
+                "path": "pair_agent_b"
               }
             ]
           }
@@ -853,6 +919,16 @@
       "code": 6010,
       "name": "ContestWindowClosed",
       "msg": "Contestation en dehors du delai de grace"
+    },
+    {
+      "code": 6011,
+      "name": "InvalidTreasury",
+      "msg": "Adresse treasury invalide"
+    },
+    {
+      "code": 6012,
+      "name": "ArithmeticOverflow",
+      "msg": "Overflow dans le calcul du delai"
     }
   ],
   "types": [

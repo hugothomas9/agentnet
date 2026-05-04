@@ -49,7 +49,10 @@ export async function verifyAgentSignature(req: Request, res: Response, next: Ne
     return;
   }
 
-  const body = req.body ? JSON.stringify(req.body) : "";
+  // body-parser initialise req.body a {} par defaut, meme sans Content-Type ;
+  // on traite {} comme "pas de body" pour permettre la signature des GET
+  const hasBody = req.body && typeof req.body === "object" && Object.keys(req.body).length > 0;
+  const body = hasBody ? JSON.stringify(req.body) : "";
   const message = new TextEncoder().encode(`${body}${timestamp}`);
 
   if (!verifyEd25519Signature(pubkey, message, signature)) {

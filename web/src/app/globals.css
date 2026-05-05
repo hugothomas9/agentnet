@@ -1,0 +1,123 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
+@layer base {
+  :root {
+    --bg-primary: #0a0a0a;
+    --bg-secondary: #111111;
+    --bg-card: #161616;
+    --bg-hover: #1c1c1c;
+    --border: rgba(255, 255, 255, 0.08);
+    --text-primary: #f0f0f0;
+    --text-secondary: #888888;
+    --text-muted: #555555;
+    --accent: #ffffff;
+    --accent-dim: rgba(255, 255, 255, 0.15);
+    --success: #4ade80;
+    --warning: #facc15;
+    --error: #f87171;
+    --pending: #93c5fd;
+    --contested: #fb923c;
+  }
+
+  [data-theme="light"] {
+    --bg-primary: #fafafa;
+    --bg-secondary: #f0f0f0;
+    --bg-card: #ffffff;
+    --bg-hover: #f5f5f5;
+    --border: rgba(0, 0, 0, 0.08);
+    --text-primary: #0a0a0a;
+    --text-secondary: #666666;
+    --text-muted: #999999;
+    --accent: #000000;
+    --accent-dim: rgba(0, 0, 0, 0.1);
+    --success: #16a34a;
+    --warning: #ca8a04;
+    --error: #dc2626;
+    --pending: #2563eb;
+    --contested: #ea580c;
+  }
+
+  body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: "Inter", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@layer components {
+  .card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+
+  .badge {
+    padding: 2px 8px;
+    border-radius: 9999px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  .badge-accent {
+    background-color: var(--accent-dim);
+    color: var(--accent);
+  }
+
+  .badge-success {
+    background: rgba(74, 222, 128, 0.1);
+    color: var(--success);
+  }
+
+  .badge-warning {
+    background: rgba(250, 204, 21, 0.1);
+    color: var(--warning);
+  }
+
+  .badge-error {
+    background: rgba(248, 113, 113, 0.1);
+    color: var(--error);
+  }
+
+  .badge-pending {
+    background: rgba(147, 197, 253, 0.1);
+    color: var(--pending);
+  }
+
+  .badge-contested {
+    background: rgba(251, 146, 60, 0.1);
+    color: var(--contested);
+  }
+
+  .text-primary { color: var(--text-primary); }
+  .text-secondary { color: var(--text-secondary); }
+  .text-muted { color: var(--text-muted); }
+  .text-accent { color: var(--accent); }
+  .bg-primary { background-color: var(--bg-primary); }
+  .bg-secondary { background-color: var(--bg-secondary); }
+  .bg-card { background-color: var(--bg-card); }
+  .bg-hover { background-color: var(--bg-hover); }
+  .border-subtle { border-color: var(--border); }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bg-hover);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}

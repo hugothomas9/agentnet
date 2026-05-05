@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import { WalletProvider } from "@/components/WalletProvider";
+import { AgentNetProvider } from "@/context/AgentNetContext";
+import { Navbar } from "@/components/Navbar";
+import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AgentNet — AI Agent Registry on Solana",
+  title: "AgentNet — AI Agent Explorer on Solana",
   description:
-    "On-chain identity & reputation registry for AI agents on Solana",
+    "On-chain identity & reputation explorer for AI agents on Solana",
 };
 
 export default function RootLayout({
@@ -12,11 +15,15 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // TODO: ajouter global styles, theme, providers
   return (
     <html lang="en">
       <body>
-        <WalletProvider>{children}</WalletProvider>
+        <WalletProvider>
+          <AgentNetProvider>
+            <Navbar />
+            {children}
+          </AgentNetProvider>
+        </WalletProvider>
       </body>
     </html>
   );

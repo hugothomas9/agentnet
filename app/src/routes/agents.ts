@@ -121,7 +121,7 @@ agentsRouter.post("/register", async (req, res) => {
         SystemProgram.transfer({
           fromPubkey: serverKp.publicKey,
           toPubkey: agentWallet,
-          lamports: 0.5 * LAMPORTS_PER_SOL,
+          lamports: 0.02 * LAMPORTS_PER_SOL,
         })
       );
       fundTx.feePayer = serverKp.publicKey;

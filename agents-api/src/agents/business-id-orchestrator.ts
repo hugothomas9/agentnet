@@ -1,34 +1,46 @@
+import dotenv from "dotenv";
+dotenv.config();
+import { createHash } from "crypto";
 import { PrivyClient } from "@privy-io/server-auth";
-import {
-  Connection,
-  LAMPORTS_PER_SOL,
-  PublicKey,
-  SystemProgram,
-  Transaction,
-} from "@solana/web3.js";
+import { LAMPORTS_PER_SOL } from "@solana/web3.js";
+import bs58 from "bs58";
 import { AgentExecutePayload, AgentExecutionContext, AgentExecutionResult } from "../types";
 
 const AGENTNET_API_URL = process.env.AGENTNET_API_URL ?? "http://localhost:3001";
 const LOCAL_AGENTS_API_URL = process.env.LOCAL_AGENTS_API_URL ?? "http://localhost:4000";
-const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
 const PRIVY_APP_ID = process.env.PRIVY_APP_ID ?? "";
 const PRIVY_APP_SECRET = process.env.PRIVY_APP_SECRET ?? "";
-// walletId Privy du wallet orchestrateur — aucune clé privée à stocker
 const ORCHESTRATOR_WALLET_ID = process.env.ORCHESTRATOR_WALLET_ID ?? "";
+const ORCHESTRATOR_WALLET_ADDRESS = "HSPxw6tCLSnoUsn2nMHFe7qBCAp3kB6ZW2tYvtuJdK39";
+
+// Sub-agent wallet config — from AgentNet registration (info_agents.md)
+const SUB_AGENT_CONFIG: Record<string, { walletId: string; walletAddress: string }> = {
+  marketScout: {
+    walletId: "ym5um9hm47re9fnkcbvrff77",
+    walletAddress: "DL4E8cq9mZx9yhCQVj5VjmBiQ5uW7qctYQ7Vx3oLYgj6",
+  },
+  customerPersona: {
+    walletId: "r3pr77re1adsu1i8to3sn0i6",
+    walletAddress: "5GTD2WZ2M4PFzWjztkwWfbx4MWpS3KeG583uY3C9SQnk",
+  },
+  mvpPlanner: {
+    walletId: "zbs4pmwbt9lp1dy0yu361eol",
+    walletAddress: "8Y4ggvmXEceZLemYEqBmZn3Zku3gpz9PE4izEFM8FDJ9",
+  },
+};
+
+// 0.003 SOL per sub-agent escrow
+const ESCROW_AMOUNT_LAMPORTS = Math.round(0.003 * LAMPORTS_PER_SOL);
+const GRACE_PERIOD_SECONDS = 2;
 
 function getPrivyClient(): PrivyClient {
   return new PrivyClient(PRIVY_APP_ID, PRIVY_APP_SECRET);
 }
 
-// 0.003 SOL per sub-agent (3 agents = 0.009 SOL, orchestrator keeps ~0.001 SOL)
-const PAYMENT_PER_AGENT_LAMPORTS = Math.round(0.003 * LAMPORTS_PER_SOL);
-
 type ExpertTask = {
   key: "marketScout" | "customerPersona" | "mvpPlanner";
   label: string;
-  // Capabilities orientées vers les agents réellement enregistrés sur AgentNet
   agentnetCapabilities: string[];
-  // Question passée à /agents/recommend
   question: string;
   fallbackAgentName: string;
   fallbackEndpoint: string;
@@ -43,10 +55,22 @@ type RecommendationResult = {
   source: "agentnet" | "fallback";
 };
 
+type EscrowRecord = {
+  escrowPda: string | null;
+  createTxSignature: string | null;
+  submitTxSignature: string | null;
+  releaseTxSignature: string | null;
+  resultHash: string | null;
+  amountSol: number | null;
+  solscanCreateUrl: string | null;
+  solscanSubmitUrl: string | null;
+  solscanReleaseUrl: string | null;
+};
+
 type ExpertCallResult = {
   task: ExpertTask;
   recommendation: RecommendationResult;
-  paymentTxSignature: string | null;
+  escrow: EscrowRecord;
   response: unknown;
 };
 
@@ -96,11 +120,54 @@ export async function executeBusinessIdOrchestratorAgent(
     language: "en",
   };
 
+  // Create escrows sequentially to avoid concurrent tx conflicts on the orchestrator wallet
+  const escrowPrep: Array<{ task: ExpertTask; recommendation: RecommendationResult; escrowPda: string | null; createTxSignature: string | null }> = [];
+  for (const task of EXPERT_TASKS) {
+    const recommendation = await recommendExpert(task);
+    const subAgentConfig = SUB_AGENT_CONFIG[task.key];
+    let escrowPda: string | null = null;
+    let createTxSignature: string | null = null;
+    try {
+      const result = await createSubAgentEscrow(task.key, subAgentConfig.walletAddress, task.label);
+      escrowPda = result.escrowPda;
+      createTxSignature = result.txSignature;
+      console.log(`[escrow] Created for "${task.label}": ${escrowPda}`);
+    } catch (err) {
+      console.error(`[escrow] Create failed for "${task.label}":`, err instanceof Error ? err.message : err);
+    }
+    escrowPrep.push({ task, recommendation, escrowPda, createTxSignature });
+  }
+
+  // Run agent calls + submit/release in parallel (each agent is independent from here)
   const expertResults = await Promise.all(
-    EXPERT_TASKS.map((task) => callExpertWithPayment(task, basePayload))
+    escrowPrep.map(({ task, recommendation, escrowPda, createTxSignature }) =>
+      executeAgentAndSettle(task, recommendation, escrowPda, createTxSignature, basePayload)
+    )
   );
 
   const report = generateHardcodedPdfReport(startupIdea, expertResults);
+
+  const escrowSummary = expertResults.map(({ task, recommendation, escrow }) => ({
+    task: task.label,
+    agentId: recommendation.agentId,
+    agentName: recommendation.agentName,
+    source: recommendation.source,
+    matchScore: recommendation.matchScore,
+    reason: recommendation.reason,
+    escrowPda: escrow.escrowPda,
+    amountSol: escrow.amountSol,
+    resultHash: escrow.resultHash,
+    transactions: {
+      createEscrow: escrow.createTxSignature,
+      submitResult: escrow.submitTxSignature,
+      releaseEscrow: escrow.releaseTxSignature,
+    },
+    solscanUrls: {
+      createEscrow: escrow.solscanCreateUrl,
+      submitResult: escrow.solscanSubmitUrl,
+      releaseEscrow: escrow.solscanReleaseUrl,
+    },
+  }));
 
   return {
     agent: "Business ID Orchestrator Agent",
@@ -108,32 +175,16 @@ export async function executeBusinessIdOrchestratorAgent(
     input: payload,
     output: {
       status: "completed",
-      paymentGate: {
-        status: "confirmed",
-        note: "0.01 devnet SOL received from client. 0.003 SOL forwarded to each selected expert agent.",
+      agentnetLoop: {
+        discover: "Orchestrator queried AgentNet /agents/recommend for each sub-task.",
+        delegate: "Orchestrator created on-chain escrows locking 0.003 SOL per sub-agent.",
+        pay: "Funds locked in escrow PDAs on Solana devnet — not released until result verified.",
+        execute: "Each specialized agent executed its analysis and returned a structured result.",
+        verify: "Result hashes committed on-chain via submit_result instruction.",
+        aggregate: "Orchestrator assembled the final report and released all escrows.",
+        reputationUpdate: "verify_and_release updated each sub-agent Reputation PDA on-chain.",
       },
-      process: [
-        "Payment to the Business ID Orchestrator Agent confirmed on Solana devnet.",
-        "The orchestrator queries AgentNet (/agents/recommend) for the best available expert for each sub-task.",
-        "AgentNet returns the highest-ranked registered agent matching each capability set.",
-        "The orchestrator sends 0.003 devnet SOL to each selected agent wallet (on-chain transaction).",
-        "Each expert agent executes its analysis and returns a structured result.",
-        "The orchestrator assembles the final client report.",
-      ],
-      selectedExperts: expertResults.map(({ task, recommendation, paymentTxSignature }) => ({
-        task: task.label,
-        agentId: recommendation.agentId,
-        agentName: recommendation.agentName,
-        endpoint: recommendation.endpoint,
-        matchScore: recommendation.matchScore,
-        reason: recommendation.reason,
-        source: recommendation.source,
-        paymentTxSignature,
-        paymentAmountSol: paymentTxSignature ? 0.003 : null,
-        solscanUrl: paymentTxSignature
-          ? `https://solscan.io/tx/${paymentTxSignature}?cluster=devnet`
-          : null,
-      })),
+      selectedExperts: escrowSummary,
       expertResponses: Object.fromEntries(
         expertResults.map(({ task, response }) => [task.key, response])
       ),
@@ -150,21 +201,17 @@ export async function executeBusinessIdOrchestratorAgent(
   };
 }
 
-async function callExpertWithPayment(
+async function executeAgentAndSettle(
   task: ExpertTask,
+  recommendation: RecommendationResult,
+  escrowPda: string | null,
+  createTxSignature: string | null,
   payload: AgentExecutePayload
 ): Promise<ExpertCallResult> {
-  // 1. Demander à AgentNet le meilleur agent pour cette tâche
-  const recommendation = await recommendExpert(task);
+  const subAgentConfig = SUB_AGENT_CONFIG[task.key];
 
-  // 2. Payer l'agent sélectionné on-chain si on a son wallet
-  const paymentTxSignature = recommendation.agentId
-    ? await payAgent(recommendation.agentId, task.label)
-    : null;
-
-  // 3. Appeler l'endpoint local (réponse codée en dur) pour le résultat
-  const localEndpoint = task.fallbackEndpoint;
-  const response = await postJson(localEndpoint, {
+  // Call local agent endpoint for the result
+  const response = await postJson(task.fallbackEndpoint, {
     ...payload,
     task: task.label,
     requestedCapabilities: task.agentnetCapabilities,
@@ -174,8 +221,165 @@ async function callExpertWithPayment(
     error: err instanceof Error ? err.message : "Agent call failed",
   }));
 
-  return { task, recommendation, paymentTxSignature, response };
+  // 4. Submit result hash on-chain (sub-agent signs), wait grace period, release
+  let submitTxSignature: string | null = null;
+  let resultHash: string | null = null;
+  let releaseTxSignature: string | null = null;
+
+  if (escrowPda) {
+    try {
+      resultHash = hashResult(response);
+      submitTxSignature = await submitSubAgentResult(
+        subAgentConfig.walletId,
+        subAgentConfig.walletAddress,
+        escrowPda,
+        resultHash
+      );
+      console.log(`[escrow] Result submitted for "${task.label}": ${submitTxSignature}`);
+
+      // Wait for grace period to expire before releasing
+      await sleep((GRACE_PERIOD_SECONDS + 2) * 1000);
+
+      releaseTxSignature = await releaseSubAgentEscrow(escrowPda);
+      console.log(`[escrow] Released for "${task.label}": ${releaseTxSignature}`);
+    } catch (err) {
+      console.error(`[escrow] Submit/release failed for "${task.label}":`, err instanceof Error ? err.message : err);
+    }
+  }
+
+  const solscan = (sig: string | null) =>
+    sig ? `https://solscan.io/tx/${sig}?cluster=devnet` : null;
+
+  return {
+    task,
+    recommendation,
+    escrow: {
+      escrowPda,
+      createTxSignature,
+      submitTxSignature,
+      releaseTxSignature,
+      resultHash,
+      amountSol: escrowPda ? 0.003 : null,
+      solscanCreateUrl: solscan(createTxSignature),
+      solscanSubmitUrl: solscan(submitTxSignature),
+      solscanReleaseUrl: solscan(releaseTxSignature),
+    },
+    response,
+  };
 }
+
+// --- Escrow helpers ---
+
+async function buildAuthHeaders(
+  walletId: string,
+  walletAddress: string,
+  body: Record<string, unknown>
+): Promise<Record<string, string>> {
+  const privy = getPrivyClient();
+  const timestamp = Math.floor(Date.now() / 1000);
+  const bodyStr = Object.keys(body).length > 0 ? JSON.stringify(body) : "";
+  const message = new TextEncoder().encode(`${bodyStr}${timestamp}`);
+
+  const { signature } = await privy.walletApi.solana.signMessage({
+    walletId,
+    message,
+  });
+
+  return {
+    "Content-Type": "application/json",
+    "X-Agent-Pubkey": walletAddress,
+    "X-Signature": bs58.encode(signature),
+    "X-Timestamp": String(timestamp),
+  };
+}
+
+async function createSubAgentEscrow(
+  taskKey: string,
+  executorWallet: string,
+  taskDescription: string
+): Promise<{ escrowPda: string; txSignature: string }> {
+  const taskId = `demo-${taskKey}-${Date.now()}`.slice(0, 32);
+  const body: Record<string, unknown> = {
+    requesterWalletId: ORCHESTRATOR_WALLET_ID,
+    requesterWallet: ORCHESTRATOR_WALLET_ADDRESS,
+    executorWallet,
+    taskId,
+    taskDescription,
+    amount: ESCROW_AMOUNT_LAMPORTS,
+    deadline: Math.floor(Date.now() / 1000) + 600,
+    gracePeriodDuration: GRACE_PERIOD_SECONDS,
+  };
+
+  const headers = await buildAuthHeaders(ORCHESTRATOR_WALLET_ID, ORCHESTRATOR_WALLET_ADDRESS, body);
+
+  const res = await fetch(`${AGENTNET_API_URL}/escrow/create`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`escrow/create → ${res.status}: ${text}`);
+  }
+
+  return res.json() as Promise<{ escrowPda: string; txSignature: string }>;
+}
+
+async function submitSubAgentResult(
+  walletId: string,
+  walletAddress: string,
+  escrowPda: string,
+  resultHash: string
+): Promise<string> {
+  const body: Record<string, unknown> = {
+    executorWalletId: walletId,
+    executorWallet: walletAddress,
+    resultHash,
+  };
+
+  const headers = await buildAuthHeaders(walletId, walletAddress, body);
+
+  const res = await fetch(`${AGENTNET_API_URL}/escrow/${escrowPda}/submit`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`escrow/submit → ${res.status}: ${text}`);
+  }
+
+  const data = await res.json() as { txSignature: string };
+  return data.txSignature;
+}
+
+async function releaseSubAgentEscrow(escrowPda: string): Promise<string> {
+  const res = await fetch(`${AGENTNET_API_URL}/escrow/${escrowPda}/release`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`escrow/release → ${res.status}: ${text}`);
+  }
+
+  const data = await res.json() as { txSignature: string };
+  return data.txSignature;
+}
+
+function hashResult(result: unknown): string {
+  return createHash("sha256").update(JSON.stringify(result)).digest("hex");
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// --- AgentNet recommendation ---
 
 async function recommendExpert(task: ExpertTask): Promise<RecommendationResult> {
   try {
@@ -188,12 +392,10 @@ async function recommendExpert(task: ExpertTask): Promise<RecommendationResult> 
 
     const bestAgent = recommendation?.bestAgent;
     if (!bestAgent?.agentId) {
-      // Pas de résultat AgentNet → chercher dans le registre directement
       const registered = await findRegisteredExpert(task);
       return registered ?? fallbackRecommendation(task, "AgentNet returned no matching expert.");
     }
 
-    // Récupérer les détails de l'agent recommandé
     const detail = await getJson(`${AGENTNET_API_URL}/agents/${bestAgent.agentId}`);
     const agent = detail?.agent;
 
@@ -243,58 +445,11 @@ async function findRegisteredExpert(task: ExpertTask): Promise<RecommendationRes
       agentId: agent.agentWallet,
       agentName: agent.name ?? task.fallbackAgentName,
       matchScore: 1,
-      reason: `Selected from AgentNet registry — has at least one required capability (${task.agentnetCapabilities.join(", ")}).`,
+      reason: `Selected from AgentNet registry — matched capability: ${task.agentnetCapabilities.join(", ")}.`,
       endpoint: agent.endpoint ?? task.fallbackEndpoint,
       source: "agentnet",
     };
   } catch {
-    return null;
-  }
-}
-
-// Paiement on-chain devnet depuis le server keypair vers le wallet de l'agent
-async function payAgent(agentWallet: string, taskLabel: string): Promise<string | null> {
-  if (!ORCHESTRATOR_WALLET_ID || !PRIVY_APP_ID || !PRIVY_APP_SECRET) {
-    console.warn(`[payAgent] Privy not configured — skipping payment for "${taskLabel}"`);
-    return null;
-  }
-
-  try {
-    const privy = getPrivyClient();
-    const connection = new Connection(SOLANA_RPC_URL, "confirmed");
-    const toPubkey = new PublicKey(agentWallet);
-
-    // Récupérer la pubkey du wallet orchestrateur via Privy
-    const orchestratorWallet = await privy.walletApi.getWallet({ id: ORCHESTRATOR_WALLET_ID });
-    const fromPubkey = new PublicKey(orchestratorWallet.address);
-
-    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
-    const tx = new Transaction({
-      feePayer: fromPubkey,
-      recentBlockhash: blockhash,
-    }).add(
-      SystemProgram.transfer({
-        fromPubkey,
-        toPubkey,
-        lamports: PAYMENT_PER_AGENT_LAMPORTS,
-      })
-    );
-
-    // Privy signe — aucune clé privée exposée
-    const { signedTransaction } = await privy.walletApi.solana.signTransaction({
-      walletId: ORCHESTRATOR_WALLET_ID,
-      transaction: tx,
-    });
-
-    const signature = await connection.sendRawTransaction(
-      (signedTransaction as Transaction).serialize()
-    );
-    await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, "confirmed");
-
-    console.log(`[payAgent] Paid 0.003 SOL to ${agentWallet} for "${taskLabel}" — tx: ${signature}`);
-    return signature;
-  } catch (err) {
-    console.error(`[payAgent] Payment failed for "${taskLabel}":`, err instanceof Error ? err.message : err);
     return null;
   }
 }
@@ -304,13 +459,12 @@ function fallbackRecommendation(task: ExpertTask, reason: string): Recommendatio
     agentId: null,
     agentName: task.fallbackAgentName,
     matchScore: null,
-    reason: `${reason} Using local demo fallback for ${task.fallbackAgentName}.`,
+    reason: `${reason} Using local demo fallback.`,
     endpoint: task.fallbackEndpoint,
     source: "fallback",
   };
 }
 
-// OR logic : au moins une capability en commun suffit
 function hasAnyCapability(agentCapabilities: unknown, required: string[]): boolean {
   if (!Array.isArray(agentCapabilities)) return false;
   const normalized = new Set(
@@ -347,10 +501,12 @@ function generateHardcodedPdfReport(startupIdea: string, expertResults: ExpertCa
     fileName: "business-id-freelancer-admin-saas-report.pdf",
     mimeType: "application/pdf",
     title: "Business ID Startup Validation Report",
-    generatedFrom: expertResults.map(({ task, recommendation }) => ({
+    generatedFrom: expertResults.map(({ task, recommendation, escrow }) => ({
       section: task.label,
       agentName: recommendation.agentName,
       source: recommendation.source,
+      escrowPda: escrow.escrowPda,
+      paid: escrow.amountSol ? `${escrow.amountSol} SOL` : null,
     })),
     sections: [
       {

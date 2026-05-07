@@ -14,7 +14,7 @@ const placeholder =
   "Describe your business idea, target market, and what you want the agent to test...";
 
 const ORCHESTRATOR_AGENT_WALLET = "HSPxw6tCLSnoUsn2nMHFe7qBCAp3kB6ZW2tYvtuJdK39";
-const REQUEST_PRICE_SOL = 0.01;
+const REQUEST_PRICE_SOL = 0.02;
 const SOLANA_CLUSTER = "devnet";
 const SOLANA_RPC_URL = clusterApiUrl(SOLANA_CLUSTER);
 const ORCHESTRATOR_API_URL = "http://localhost:4000/agents/business-id-orchestrator/execute";

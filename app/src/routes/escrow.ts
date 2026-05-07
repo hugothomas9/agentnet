@@ -251,6 +251,46 @@ escrowRouter.post("/:id/contest", verifyAgentSignature, async (req, res) => {
   }
 });
 
+escrowRouter.post("/:id/refund", verifyAgentSignature, async (req, res) => {
+  try {
+    const escrowPda = new PublicKey(req.params.id);
+    const escrow = await fetchEscrow(escrowPda);
+    if (!escrow) {
+      res.status(404).json({ error: "Escrow not found" });
+      return;
+    }
+
+    const callerPubkey = (req as any).agentPubkey as string;
+    if (callerPubkey !== escrow.requester) {
+      res.status(403).json({ error: "Forbidden: only the requester can trigger a refund" });
+      return;
+    }
+
+    if (!["contested", "awaiting_result"].includes(escrow.status)) {
+      res.status(400).json({
+        error: `Cannot refund escrow with status "${escrow.status}". Must be contested or awaiting_result with expired deadline.`,
+      });
+      return;
+    }
+
+    const serverKp = getServerKeypair();
+    const program = getProgram(serverKp);
+
+    const sig = await program.methods
+      .refundEscrow()
+      .accounts({
+        anyone: serverKp.publicKey,
+        escrow: escrowPda,
+        requesterWallet: new PublicKey(escrow.requester),
+      })
+      .rpc();
+
+    res.json({ success: true, txSignature: sig });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 escrowRouter.get("/:id", async (req, res) => {
   try {
     const escrowPda = new PublicKey(req.params.id);

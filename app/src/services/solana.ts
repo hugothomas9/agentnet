@@ -151,6 +151,73 @@ export async function fetchReputation(pda: PublicKey): Promise<ReputationMetrics
   }
 }
 
+export interface ReputationEvent {
+  signature: string;
+  slot: number;
+  timestamp: number | null;
+  eventType: "task_completed" | "task_contested" | "task_received" | "unknown";
+}
+
+export async function fetchReputationHistory(
+  agentWallet: PublicKey,
+  limit = 20
+): Promise<ReputationEvent[]> {
+  const connection = getConnection();
+  const [repPda] = getReputationPDA(agentWallet);
+
+  const signatures = await connection.getSignaturesForAddress(repPda, { limit });
+
+  const events: ReputationEvent[] = signatures
+    .filter((s) => !s.err)
+    .map((s) => {
+      const logs = (s as any).memo ?? "";
+      let eventType: ReputationEvent["eventType"] = "unknown";
+      // instruction name appears in program logs as "Instruction: <Name>"
+      if (logs.includes("VerifyAndRelease") || logs.includes("verify_and_release")) {
+        eventType = "task_completed";
+      } else if (logs.includes("ContestEscrow") || logs.includes("contest_escrow")) {
+        eventType = "task_contested";
+      } else if (logs.includes("CreateEscrow") || logs.includes("create_escrow")) {
+        eventType = "task_received";
+      }
+      return {
+        signature: s.signature,
+        slot: s.slot,
+        timestamp: s.blockTime ?? null,
+        eventType,
+      };
+    });
+
+  // Resolve unknown events by fetching transaction logs (up to 5 to limit RPC calls)
+  const unknownIndexes = events
+    .map((e, i) => (e.eventType === "unknown" ? i : -1))
+    .filter((i) => i !== -1)
+    .slice(0, 5);
+
+  await Promise.all(
+    unknownIndexes.map(async (i) => {
+      try {
+        const tx = await connection.getParsedTransaction(events[i].signature, {
+          maxSupportedTransactionVersion: 0,
+          commitment: "confirmed",
+        });
+        const logMessages = tx?.meta?.logMessages ?? [];
+        if (logMessages.some((l) => l.includes("VerifyAndRelease") || l.includes("verify_and_release"))) {
+          events[i].eventType = "task_completed";
+        } else if (logMessages.some((l) => l.includes("ContestEscrow") || l.includes("contest_escrow"))) {
+          events[i].eventType = "task_contested";
+        } else if (logMessages.some((l) => l.includes("CreateEscrow") || l.includes("create_escrow"))) {
+          events[i].eventType = "task_received";
+        }
+      } catch {
+        // keep "unknown"
+      }
+    })
+  );
+
+  return events;
+}
+
 export async function fetchAllReputations(): Promise<ReputationMetrics[]> {
   const program = getProgram();
   const accounts = await (program.account as any).reputation.all();

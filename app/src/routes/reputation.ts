@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { PublicKey } from "@solana/web3.js";
-import { getReputationPDA, fetchReputation, fetchAllReputations, getAgentPDA, fetchAgent } from "../services/solana";
+import { getReputationPDA, fetchReputation, fetchAllReputations, fetchReputationHistory, getAgentPDA, fetchAgent } from "../services/solana";
 import { buildLeaderboard } from "../services/reputation";
 
 export const reputationRouter = Router();
@@ -46,9 +46,20 @@ reputationRouter.get("/leaderboard", async (req, res) => {
 reputationRouter.get("/:pubkey/history", async (req, res) => {
   try {
     const agentWallet = new PublicKey(req.params.pubkey);
-    const [repPda] = getReputationPDA(agentWallet);
-    const current = await fetchReputation(repPda);
-    res.json({ history: current ? [current] : [] });
+    const limitParam = req.query.limit as string | undefined;
+    const limit = limitParam ? Math.min(parseInt(limitParam, 10), 50) : 20;
+
+    const [current, events] = await Promise.all([
+      fetchReputation(getReputationPDA(agentWallet)[0]),
+      fetchReputationHistory(agentWallet, limit),
+    ]);
+
+    if (!current) {
+      res.status(404).json({ error: "Reputation not found" });
+      return;
+    }
+
+    res.json({ current, events });
   } catch (err: any) {
     res.status(400).json({ error: err.message });
   }

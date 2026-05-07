@@ -1,7 +1,17 @@
 const API = "http://localhost:3001";
 
-async function test(label: string, method: string, path: string, expectStatus: number) {
-  const res = await fetch(`${API}${path}`, { method });
+async function test(
+  label: string,
+  method: string,
+  path: string,
+  expectStatus: number,
+  body?: unknown
+): Promise<any> {
+  const res = await fetch(`${API}${path}`, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
   const json = await res.json().catch(() => null);
   const ok = res.status === expectStatus;
   console.log(`${ok ? "✓" : "✗"} [${res.status}] ${label}`);
@@ -43,6 +53,73 @@ async function run() {
   } else {
     console.log("  (aucun agent en base — test GET /:pubkey existant ignoré)");
   }
+
+  console.log("\n-- POST /agents/recommend --");
+  await test(
+    "Question anglaise research -> 200",
+    "POST",
+    "/agents/recommend",
+    200,
+    {
+      question: "I need to analyze a financial PDF and produce a summary",
+      priority: "best_match",
+    }
+  ).then((json) => {
+    const bestAgent = json?.bestAgent ?? null;
+    const hasActiveResearchSummaryAgent = agents.some((agent: any) =>
+      agent?.status === "active" &&
+      Array.isArray(agent?.capabilities) &&
+      agent.capabilities.some((capability: string) =>
+        ["research", "summarization"].includes(String(capability).toLowerCase())
+      )
+    );
+
+    console.log(
+      `${bestAgent === null || typeof bestAgent === "object" ? "OK" : "FAIL"} bestAgent est null ou objet`
+    );
+    if (hasActiveResearchSummaryAgent) {
+      console.log(`${bestAgent !== null ? "OK" : "FAIL"} bestAgent non null si agent research/summarization actif`);
+    } else {
+      console.log("  (aucun agent research/summarization actif detecte - bestAgent non null non exige)");
+    }
+  });
+
+  await test(
+    "Question hors sujet -> 200",
+    "POST",
+    "/agents/recommend",
+    200,
+    {
+      question: "I want to cook an apple pie",
+      priority: "best_match",
+    }
+  ).then((json) => {
+    console.log(`${json?.bestAgent === null ? "OK" : "FAIL"} bestAgent est null`);
+  });
+
+  await test(
+    "Priorite reputation -> 200",
+    "POST",
+    "/agents/recommend",
+    200,
+    {
+      question: "I need to translate a document",
+      priority: "reputation",
+    }
+  ).then((json) => {
+    console.log(`${json?.meta?.priority === "reputation" ? "OK" : "FAIL"} meta.priority = "reputation"`);
+  });
+
+  await test(
+    "Priorite invalide -> 400",
+    "POST",
+    "/agents/recommend",
+    400,
+    {
+      question: "I need to translate a document",
+      priority: "random",
+    }
+  );
 
   console.log("\nDone.\n");
 }

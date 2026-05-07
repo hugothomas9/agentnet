@@ -19,7 +19,14 @@ export interface AgentNFTData {
   owner: string;
   name: string;
   uri: string;
+  pricePerRequestSol?: number;
+  pricePerRequestLamports?: number;
 }
+
+type AgentMintMetadata = Pick<
+  AgentMetadata,
+  "name" | "capabilities" | "endpoint" | "version" | "pricePerRequestSol" | "pricePerRequestLamports"
+>;
 
 function getUmi() {
   const umi = createUmi(config.solanaRpcUrl);
@@ -33,7 +40,7 @@ function getUmi() {
 export async function mintAgentNFT(
   ownerPubkey: string,
   agentWalletPubkey: string,
-  metadata: Pick<AgentMetadata, "name" | "capabilities" | "endpoint" | "version">
+  metadata: AgentMintMetadata
 ): Promise<string> {
   const umi = getUmi();
   const assetSigner = generateSigner(umi);
@@ -46,6 +53,12 @@ export async function mintAgentNFT(
         { trait_type: "capabilities", value: metadata.capabilities.join(",") },
         { trait_type: "endpoint", value: metadata.endpoint },
         { trait_type: "version", value: metadata.version },
+        ...(metadata.pricePerRequestSol !== undefined
+          ? [{ trait_type: "price_per_request_sol", value: metadata.pricePerRequestSol.toString() }]
+          : []),
+        ...(metadata.pricePerRequestLamports !== undefined
+          ? [{ trait_type: "price_per_request_lamports", value: metadata.pricePerRequestLamports.toString() }]
+          : []),
       ],
     })
   ).toString("base64")}`;
@@ -69,15 +82,43 @@ export async function getAgentNFT(mintAddress: string): Promise<AgentNFTData | n
       owner: asset.owner.toString(),
       name: asset.name,
       uri: asset.uri,
+      ...parseAgentNftPricing(asset.uri),
     };
   } catch {
     return null;
   }
 }
 
+function parseAgentNftPricing(uri: string): {
+  pricePerRequestSol?: number;
+  pricePerRequestLamports?: number;
+} {
+  try {
+    const decoded = Buffer.from(uri.replace("data:application/json;base64,", ""), "base64").toString();
+    const metadata = JSON.parse(decoded);
+    const attributes = Array.isArray(metadata?.attributes) ? metadata.attributes : [];
+    const findValue = (traitType: string) =>
+      attributes.find((attr: any) => attr?.trait_type === traitType)?.value;
+    const priceSol = Number(findValue("price_per_request_sol"));
+    const priceLamports = Number(findValue("price_per_request_lamports"));
+
+    return {
+      ...(Number.isFinite(priceSol) ? { pricePerRequestSol: priceSol } : {}),
+      ...(Number.isFinite(priceLamports) ? { pricePerRequestLamports: priceLamports } : {}),
+    };
+  } catch {
+    return {};
+  }
+}
+
 export async function updateNFTMetadata(
   mintAddress: string,
-  metadata: Partial<Pick<AgentMetadata, "name" | "capabilities" | "endpoint" | "version">>
+  metadata: Partial<
+    Pick<
+      AgentMetadata,
+      "name" | "capabilities" | "endpoint" | "version" | "pricePerRequestSol" | "pricePerRequestLamports"
+    >
+  >
 ): Promise<void> {
   const umi = getUmi();
   const asset = await fetchAsset(umi, umiPubkey(mintAddress));
@@ -85,7 +126,13 @@ export async function updateNFTMetadata(
   const updates: { name?: string; uri?: string } = {};
   if (metadata.name) updates.name = metadata.name;
 
-  if (metadata.capabilities || metadata.endpoint || metadata.version) {
+  if (
+    metadata.capabilities ||
+    metadata.endpoint ||
+    metadata.version ||
+    metadata.pricePerRequestSol !== undefined ||
+    metadata.pricePerRequestLamports !== undefined
+  ) {
     let existing: any = {};
     try {
       const decoded = Buffer.from(asset.uri.replace("data:application/json;base64,", ""), "base64").toString();
@@ -99,6 +146,22 @@ export async function updateNFTMetadata(
           { trait_type: "capabilities", value: (metadata.capabilities ?? existing?.attributes?.[0]?.value ?? "").toString() },
           { trait_type: "endpoint", value: metadata.endpoint ?? existing?.attributes?.[1]?.value ?? "" },
           { trait_type: "version", value: metadata.version ?? existing?.attributes?.[2]?.value ?? "" },
+          {
+            trait_type: "price_per_request_sol",
+            value: (
+              metadata.pricePerRequestSol ??
+              existing?.attributes?.find?.((attr: any) => attr?.trait_type === "price_per_request_sol")?.value ??
+              ""
+            ).toString(),
+          },
+          {
+            trait_type: "price_per_request_lamports",
+            value: (
+              metadata.pricePerRequestLamports ??
+              existing?.attributes?.find?.((attr: any) => attr?.trait_type === "price_per_request_lamports")?.value ??
+              ""
+            ).toString(),
+          },
         ],
       })
     ).toString("base64")}`;

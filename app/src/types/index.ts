@@ -5,6 +5,8 @@ export interface AgentMetadata {
   version: string;
   capabilities: string[];
   endpoint: string;
+  pricePerRequestSol?: number;
+  pricePerRequestLamports?: number;
   status: "active" | "suspended" | "deprecated";
 }
 
@@ -69,4 +71,37 @@ export interface SearchAgentsQuery {
   minScore?: number;
   maxPrice?: number;
   status?: string;
+}
+
+// ---- Agent Recommendation ----
+
+export type AgentRecommendationPriority =
+  | "best_match"
+  | "reputation"
+  | "speed"
+  | "price"
+  | "reliability";
+
+export interface RecommendAgentRequest {
+  question: string;
+  priority?: AgentRecommendationPriority;
+  capabilities?: string[];
+  minScore?: number;
+  maxPrice?: number;
+  excludeAgentIds?: string[];
+  limit?: number;
+}
+
+export interface AgentRecommendation {
+  agentId: string;
+  matchScore: number;
+  reason?: string;
+}
+
+export interface RecommendAgentResponse {
+  bestAgent: AgentRecommendation | null;
+  alternatives: AgentRecommendation[];
+  meta: {
+    priority: AgentRecommendationPriority;
+  };
 }

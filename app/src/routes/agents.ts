@@ -2,7 +2,7 @@ import { Router } from "express";
 import { PublicKey, SystemProgram, Transaction, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { verifyAgentSignature } from "../middleware/auth";
 import { createAgentWallet } from "../services/privy";
-import { mintAgentNFT } from "../services/metaplex";
+import { getAgentNFT, mintAgentNFT } from "../services/metaplex";
 import {
   getProgram,
   getServerKeypair,
@@ -13,12 +13,25 @@ import {
   fetchAgent,
   fetchReputation,
 } from "../services/solana";
+import {
+  AgentRecommendationPriority,
+  RecommendAgentRequest,
+} from "../types";
+import { recommendBestAgentForQuestion } from "../services/recommendation";
 
 export const agentsRouter = Router();
 
-agentsRouter.get("/", async (_req, res) => {
+agentsRouter.get("/", async (req, res) => {
   try {
-    const agents = await fetchAllAgents();
+    const { status, includeInactive } = req.query as Record<string, string>;
+    let agents = await fetchAllAgents();
+
+    if (status) {
+      agents = agents.filter((agent) => agent.status === status);
+    } else if (includeInactive !== "true") {
+      agents = agents.filter((agent) => agent.status === "active");
+    }
+
     res.json({ agents });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -58,6 +71,37 @@ agentsRouter.get("/search", verifyAgentSignature, async (req, res) => {
   }
 });
 
+agentsRouter.post("/recommend", async (req, res) => {
+  try {
+    const body = req.body as RecommendAgentRequest;
+
+    if (!body.question || typeof body.question !== "string") {
+      res.status(400).json({ error: "Missing required field: question" });
+      return;
+    }
+
+    const allowedPriorities: AgentRecommendationPriority[] = [
+      "best_match",
+      "reputation",
+      "speed",
+      "price",
+      "reliability",
+    ];
+
+    if (body.priority && !allowedPriorities.includes(body.priority)) {
+      res.status(400).json({
+        error: "Invalid priority. Expected one of: best_match, reputation, speed, price, reliability",
+      });
+      return;
+    }
+
+    const recommendation = await recommendBestAgentForQuestion(body);
+    res.json(recommendation);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 agentsRouter.get("/:pubkey", async (req, res) => {
   try {
     const agentWallet = new PublicKey(req.params.pubkey);
@@ -74,7 +118,19 @@ agentsRouter.get("/:pubkey", async (req, res) => {
       return;
     }
 
-    res.json({ agent, reputation });
+    const nft = await getAgentNFT(agent.nftMint);
+
+    res.json({
+      agent: {
+        ...agent,
+        ...(nft?.pricePerRequestSol !== undefined ? { pricePerRequestSol: nft.pricePerRequestSol } : {}),
+        ...(nft?.pricePerRequestLamports !== undefined
+          ? { pricePerRequestLamports: nft.pricePerRequestLamports }
+          : {}),
+      },
+      reputation,
+      nft,
+    });
   } catch (err: any) {
     res.status(400).json({ error: err.message });
   }
@@ -82,16 +138,34 @@ agentsRouter.get("/:pubkey", async (req, res) => {
 
 agentsRouter.post("/register", async (req, res) => {
   try {
-    const { name, version, capabilities, endpoint, ownerPubkey } = req.body as {
+    const { name, version, capabilities, endpoint, ownerPubkey, pricePerRequestSol, pricePerRequestLamports } = req.body as {
       name: string;
       version: string;
       capabilities: string[];
       endpoint: string;
       ownerPubkey?: string;
+      pricePerRequestSol?: number;
+      pricePerRequestLamports?: number;
     };
 
     if (!name || !version || !capabilities || !endpoint) {
       res.status(400).json({ error: "Missing required fields: name, version, capabilities, endpoint" });
+      return;
+    }
+
+    const normalizedPriceLamports =
+      pricePerRequestLamports ??
+      (pricePerRequestSol !== undefined ? Math.round(pricePerRequestSol * LAMPORTS_PER_SOL) : undefined);
+    const normalizedPriceSol =
+      pricePerRequestSol ??
+      (pricePerRequestLamports !== undefined ? pricePerRequestLamports / LAMPORTS_PER_SOL : undefined);
+
+    if (
+      (normalizedPriceSol !== undefined && (!Number.isFinite(normalizedPriceSol) || normalizedPriceSol < 0)) ||
+      (normalizedPriceLamports !== undefined &&
+        (!Number.isFinite(normalizedPriceLamports) || normalizedPriceLamports < 0))
+    ) {
+      res.status(400).json({ error: "Invalid pricePerRequestSol or pricePerRequestLamports" });
       return;
     }
 
@@ -136,6 +210,8 @@ agentsRouter.post("/register", async (req, res) => {
       version,
       capabilities,
       endpoint,
+      ...(normalizedPriceSol !== undefined ? { pricePerRequestSol: normalizedPriceSol } : {}),
+      ...(normalizedPriceLamports !== undefined ? { pricePerRequestLamports: normalizedPriceLamports } : {}),
     });
     const nftMint = new PublicKey(nftMintAddress);
 
@@ -162,6 +238,8 @@ agentsRouter.post("/register", async (req, res) => {
       ...(walletId && { walletId }),
       nftMint: nftMintAddress,
       agentPda: agentPda.toBase58(),
+      ...(normalizedPriceSol !== undefined ? { pricePerRequestSol: normalizedPriceSol } : {}),
+      ...(normalizedPriceLamports !== undefined ? { pricePerRequestLamports: normalizedPriceLamports } : {}),
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

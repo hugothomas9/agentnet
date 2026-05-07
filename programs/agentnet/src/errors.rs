@@ -40,4 +40,16 @@ pub enum AgentNetError {
 
     #[msg("Overflow dans le calcul du delai")]
     ArithmeticOverflow,
+
+    #[msg("Stake insuffisant (minimum 0.05 SOL)")]
+    InsufficientStake,
+
+    #[msg("Nombre maximum d'agents atteint (50 par wallet)")]
+    MaxAgentsReached,
+
+    #[msg("L'agent a des escrows actifs, impossible de retirer le stake")]
+    AgentHasActiveEscrows,
+
+    #[msg("Le stake a deja ete retire")]
+    StakeAlreadyWithdrawn,
 }

@@ -1,9 +1,12 @@
 /**
  * Seed 10 agents on devnet via POST /agents/register
  * Mode test: utilise agentWalletPubkey pour bypass Privy
+ * Capabilities from whitelist: research, translation, analysis, report,
+ *   code, data, summarization, monitoring, writing, planning, communication, automation
  */
 
 import { Keypair } from "@solana/web3.js";
+import bs58 from "bs58";
 
 const API = "http://localhost:3001";
 const OWNER_PUBKEY = "9YkhYGQphEspcR2Pftw55174ybkpQFQmo24T72AQK2QX";
@@ -13,66 +16,65 @@ const AGENTS = [
     name: "ResearchBot",
     version: "2.1.0",
     capabilities: ["research", "analysis", "summarization"],
-    endpoint: "https://agents.agentnet.dev/research-bot",
+    endpoint: "https://httpbin.org/status/200",
   },
   {
     name: "TranslatorBot",
     version: "3.0.0",
-    capabilities: ["translation", "localization", "nlp"],
-    endpoint: "https://agents.agentnet.dev/translator-bot",
+    capabilities: ["translation", "writing"],
+    endpoint: "https://httpbin.org/status/200",
   },
   {
     name: "ReportBot",
     version: "1.4.0",
-    capabilities: ["reporting", "formatting", "export"],
-    endpoint: "https://agents.agentnet.dev/report-bot",
+    capabilities: ["report", "writing", "summarization"],
+    endpoint: "https://httpbin.org/status/200",
   },
   {
     name: "CodeGenAgent",
     version: "4.0.0",
-    capabilities: ["code-generation", "review", "testing", "debugging"],
-    endpoint: "https://agents.agentnet.dev/codegen-agent",
+    capabilities: ["code", "analysis", "automation"],
+    endpoint: "https://httpbin.org/status/200",
   },
   {
     name: "AuditAgent",
     version: "2.5.0",
-    capabilities: ["security-audit", "vulnerability-scan", "compliance"],
-    endpoint: "https://agents.agentnet.dev/audit-agent",
+    capabilities: ["analysis", "monitoring", "code"],
+    endpoint: "https://httpbin.org/status/200",
   },
   {
     name: "DataMinerBot",
     version: "1.8.0",
-    capabilities: ["data-extraction", "scraping", "etl", "parsing"],
-    endpoint: "https://agents.agentnet.dev/dataminer-bot",
+    capabilities: ["data", "research", "automation"],
+    endpoint: "https://httpbin.org/status/200",
   },
   {
-    name: "DesignAgent",
+    name: "PlannerAgent",
     version: "1.0.0",
-    capabilities: ["ui-design", "prototyping", "figma"],
-    endpoint: "https://agents.agentnet.dev/design-agent",
+    capabilities: ["planning", "research", "communication"],
+    endpoint: "https://httpbin.org/status/200",
   },
   {
     name: "DeployBot",
     version: "2.0.0",
-    capabilities: ["deployment", "ci-cd", "infrastructure", "monitoring"],
-    endpoint: "https://agents.agentnet.dev/deploy-bot",
+    capabilities: ["automation", "monitoring", "code"],
+    endpoint: "https://httpbin.org/status/200",
   },
   {
     name: "SentimentAnalyzer",
     version: "1.2.0",
-    capabilities: ["sentiment-analysis", "nlp", "classification"],
-    endpoint: "https://agents.agentnet.dev/sentiment-analyzer",
+    capabilities: ["analysis", "data", "summarization"],
+    endpoint: "https://httpbin.org/status/200",
   },
   {
     name: "OracleBot",
     version: "3.1.0",
-    capabilities: ["price-feed", "oracle", "data-aggregation", "defi"],
-    endpoint: "https://agents.agentnet.dev/oracle-bot",
+    capabilities: ["data", "monitoring", "automation"],
+    endpoint: "https://httpbin.org/status/200",
   },
 ];
 
 async function registerAgent(agent: typeof AGENTS[0], index: number) {
-  // Generate a unique keypair for the agent wallet (test mode)
   const agentKeypair = Keypair.generate();
   const agentWalletPubkey = agentKeypair.publicKey.toBase58();
 
@@ -83,6 +85,7 @@ async function registerAgent(agent: typeof AGENTS[0], index: number) {
     ...agent,
     ownerPubkey: OWNER_PUBKEY,
     agentWalletPubkey,
+    agentSecretKey: bs58.encode(agentKeypair.secretKey),
   };
 
   const res = await fetch(`${API}/agents/register`, {
@@ -109,7 +112,6 @@ async function run() {
   console.log(`Owner: ${OWNER_PUBKEY}`);
   console.log(`API:   ${API}`);
 
-  // Check API health
   const health = await fetch(`${API}/health`).catch(() => null);
   if (!health || health.status !== 200) {
     console.error("\nERROR: API not running on localhost:3001");
@@ -121,7 +123,6 @@ async function run() {
   for (let i = 0; i < AGENTS.length; i++) {
     const result = await registerAgent(AGENTS[i], i);
     results.push(result);
-    // Small delay between registrations to avoid rate limiting
     if (i < AGENTS.length - 1) {
       await new Promise((r) => setTimeout(r, 2000));
     }
@@ -130,14 +131,13 @@ async function run() {
   const success = results.filter(Boolean).length;
   console.log(`\n=== Done: ${success}/${AGENTS.length} agents registered ===`);
 
-  // List all agents
   console.log("\nVerifying via GET /agents...");
   const agentsRes = await fetch(`${API}/agents`);
   const agentsJson = (await agentsRes.json()) as any;
   console.log(`Total agents on-chain: ${agentsJson.agents?.length || 0}`);
   if (agentsJson.agents) {
     agentsJson.agents.forEach((a: any) => {
-      console.log(`  - ${a.name} (${a.agentWallet.slice(0, 8)}...) score=${a.score}`);
+      console.log(`  - ${a.name} (${a.agentWallet.slice(0, 8)}...) caps=${a.capabilities?.join(",")}`);
     });
   }
 

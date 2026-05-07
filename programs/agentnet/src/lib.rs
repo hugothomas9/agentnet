@@ -6,7 +6,7 @@ pub mod state;
 
 use instructions::*;
 
-declare_id!("BY89n9pF3xkZzz5GN1pfaqzZU8NMYHqfBCNAeSyFVsSd");
+declare_id!("GhBy186FiszBKF6ga9iG5nVQnEZNRKAnd6oPsbVW5jNp");
 
 /// Adresse du treasury AgentNet (wallet qui recoit la commission 0.1%)
 /// A remplacer par la vraie adresse du treasury de l'equipe
@@ -49,5 +49,10 @@ pub mod agentnet {
     /// Remboursement automatique si deadline expire sans resultat conforme
     pub fn refund_escrow(ctx: Context<RefundEscrow>) -> Result<()> {
         instructions::refund_escrow::handler(ctx)
+    }
+
+    /// Retrait du stake et depreciation de l'agent
+    pub fn withdraw_stake(ctx: Context<WithdrawStake>) -> Result<()> {
+        instructions::withdraw_stake::handler(ctx)
     }
 }

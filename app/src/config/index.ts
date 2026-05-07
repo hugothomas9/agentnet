@@ -6,7 +6,7 @@ export const config = {
   solanaRpcUrl: process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com",
   privyAppId: process.env.PRIVY_APP_ID || "",
   privyAppSecret: process.env.PRIVY_APP_SECRET || "",
-  programId: process.env.PROGRAM_ID || "BY89n9pF3xkZzz5GN1pfaqzZU8NMYHqfBCNAeSyFVsSd",
+  programId: process.env.PROGRAM_ID || "GhBy186FiszBKF6ga9iG5nVQnEZNRKAnd6oPsbVW5jNp",
   treasuryWallet: process.env.TREASURY_WALLET || "",
   serverKeypairBase58: process.env.SERVER_KEYPAIR_BASE58 || "",
   commissionBps: 10,

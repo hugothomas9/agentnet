@@ -1,17 +1,48 @@
 "use client";
 
 import Link from "next/link";
+import { useState, useEffect, useRef } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { ThemeToggle } from "./ThemeToggle";
+import { getConnection, lamportsToSol, shortenAddress, getSolscanAccountUrl } from "@/lib/solana";
 
 export function Navbar() {
   const { publicKey, disconnect, connected } = useWallet();
   const { setVisible } = useWalletModal();
 
+  const [showProfile, setShowProfile] = useState(false);
+  const [balance, setBalance] = useState<number | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Fetch SOL balance when profile opens
+  useEffect(() => {
+    if (!showProfile || !publicKey) {
+      setBalance(null);
+      return;
+    }
+    const connection = getConnection();
+    connection.getBalance(publicKey).then((lamports) => {
+      setBalance(lamportsToSol(lamports));
+    }).catch(() => setBalance(null));
+  }, [showProfile, publicKey]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowProfile(false);
+      }
+    }
+    if (showProfile) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [showProfile]);
+
   function handleWalletClick() {
     if (connected) {
-      disconnect();
+      setShowProfile((prev) => !prev);
     } else {
       setVisible(true);
     }
@@ -52,20 +83,77 @@ export function Navbar() {
             >
               Leaderboard
             </Link>
+            {connected && (
+              <Link
+                href="/wallet"
+                className="text-sm text-secondary hover:text-primary transition-colors"
+              >
+                Wallet
+              </Link>
+            )}
           </div>
 
           {/* Right side */}
           <div className="flex items-center gap-3">
             <ThemeToggle />
-            <button
-              onClick={handleWalletClick}
-              className="flex items-center gap-2 rounded-lg border border-subtle px-4 py-2 text-sm font-medium text-accent hover:bg-hover transition-colors"
-            >
-              <WalletIcon />
-              {connected && publicKey
-                ? `${publicKey.toBase58().slice(0, 4)}...${publicKey.toBase58().slice(-4)}`
-                : "Connect Wallet"}
-            </button>
+            <div className="relative" ref={dropdownRef}>
+              <button
+                onClick={handleWalletClick}
+                className="flex items-center gap-2 rounded-lg border border-subtle px-4 py-2 text-sm font-medium text-accent hover:bg-hover transition-colors"
+              >
+                <WalletIcon />
+                {connected && publicKey
+                  ? shortenAddress(publicKey.toBase58())
+                  : "Connect Wallet"}
+              </button>
+
+              {/* Profile dropdown */}
+              {showProfile && connected && publicKey && (
+                <div className="absolute right-0 top-full mt-2 w-72 card p-4 shadow-lg border border-subtle z-50">
+                  <p className="text-xs font-medium text-secondary mb-2">Wallet Profile</p>
+
+                  <div className="mb-3">
+                    <p className="text-[10px] text-muted mb-0.5">Address</p>
+                    <p className="text-xs font-mono text-primary break-all">
+                      {publicKey.toBase58()}
+                    </p>
+                  </div>
+
+                  <div className="mb-3">
+                    <p className="text-[10px] text-muted mb-0.5">Balance</p>
+                    <p className="text-sm font-medium text-primary">
+                      {balance !== null ? `${balance.toFixed(4)} SOL` : "Loading..."}
+                    </p>
+                  </div>
+
+                  <div className="mb-3">
+                    <p className="text-[10px] text-muted mb-0.5">Network</p>
+                    <span className="badge badge-accent">Devnet</span>
+                  </div>
+
+                  <div className="border-t border-subtle pt-3 flex gap-2">
+                    <a
+                      href={getSolscanAccountUrl(publicKey.toBase58())}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 text-center rounded-lg border border-subtle px-3 py-1.5 text-xs font-medium text-accent hover:bg-hover transition-colors"
+                    >
+                      Solscan
+                    </a>
+                    <button
+                      onClick={() => {
+                        setShowProfile(false);
+                        disconnect();
+                      }}
+                      className="flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors"
+                      style={{ borderColor: "var(--error)", color: "var(--error)" }}
+                    >
+                      Disconnect
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

@@ -1,5 +1,5 @@
 {
-  "address": "BY89n9pF3xkZzz5GN1pfaqzZU8NMYHqfBCNAeSyFVsSd",
+  "address": "GhBy186FiszBKF6ga9iG5nVQnEZNRKAnd6oPsbVW5jNp",
   "metadata": {
     "name": "agentnet",
     "version": "0.1.0",
@@ -373,7 +373,7 @@
         {
           "name": "owner",
           "docs": [
-            "Le proprietaire (developpeur) qui enregistre l'agent — paie les frais de creation"
+            "Le proprietaire (developpeur) qui enregistre l'agent — paie les frais de creation + stake"
           ],
           "writable": true,
           "signer": true
@@ -387,7 +387,7 @@
         {
           "name": "agent",
           "docs": [
-            "PDA Agent — derive du wallet Privy"
+            "PDA Agent — derive du wallet agent"
           ],
           "writable": true,
           "pda": {
@@ -435,6 +435,56 @@
               {
                 "kind": "account",
                 "path": "agent_wallet"
+              }
+            ]
+          }
+        },
+        {
+          "name": "stake_vault",
+          "docs": [
+            "PDA StakeVault — recoit le stake de l'agent"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agent_wallet"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner_registry",
+          "docs": [
+            "PDA OwnerRegistry — compteur d'agents par owner (init_if_needed pour le premier agent)"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  119,
+                  110,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
               }
             ]
           }
@@ -676,7 +726,7 @@
         {
           "name": "executor_agent",
           "docs": [
-            "PDA Agent de l'executant — pour lire l'adresse owner"
+            "PDA Agent de l'executant"
           ],
           "pda": {
             "seeds": [
@@ -795,12 +845,121 @@
           }
         },
         {
-          "name": "executor_owner",
+          "name": "executor_wallet",
           "writable": true
         },
         {
           "name": "treasury",
           "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "withdraw_stake",
+      "docs": [
+        "Retrait du stake et depreciation de l'agent"
+      ],
+      "discriminator": [
+        153,
+        8,
+        22,
+        138,
+        105,
+        176,
+        87,
+        66
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "docs": [
+            "Le owner qui recupere son stake"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "agent_wallet"
+        },
+        {
+          "name": "agent",
+          "docs": [
+            "PDA Agent — doit appartenir au owner et etre Active (sera passe en Deprecated)"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agent_wallet"
+              }
+            ]
+          }
+        },
+        {
+          "name": "stake_vault",
+          "docs": [
+            "PDA StakeVault — on ferme le compte et rend les lamports au owner"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agent_wallet"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner_registry",
+          "docs": [
+            "PDA OwnerRegistry — decrementer le compteur"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  119,
+                  110,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
         },
         {
           "name": "system_program",
@@ -851,6 +1010,19 @@
       ]
     },
     {
+      "name": "OwnerRegistry",
+      "discriminator": [
+        123,
+        40,
+        39,
+        22,
+        233,
+        7,
+        45,
+        181
+      ]
+    },
+    {
       "name": "Reputation",
       "discriminator": [
         55,
@@ -861,6 +1033,19 @@
         183,
         193,
         28
+      ]
+    },
+    {
+      "name": "StakeVault",
+      "discriminator": [
+        192,
+        112,
+        65,
+        125,
+        129,
+        151,
+        173,
+        226
       ]
     }
   ],
@@ -929,6 +1114,26 @@
       "code": 6012,
       "name": "ArithmeticOverflow",
       "msg": "Overflow dans le calcul du delai"
+    },
+    {
+      "code": 6013,
+      "name": "InsufficientStake",
+      "msg": "Stake insuffisant (minimum 0.05 SOL)"
+    },
+    {
+      "code": 6014,
+      "name": "MaxAgentsReached",
+      "msg": "Nombre maximum d'agents atteint (10 par wallet)"
+    },
+    {
+      "code": 6015,
+      "name": "AgentHasActiveEscrows",
+      "msg": "L'agent a des escrows actifs, impossible de retirer le stake"
+    },
+    {
+      "code": 6016,
+      "name": "StakeAlreadyWithdrawn",
+      "msg": "Le stake a deja ete retire"
     }
   ],
   "types": [
@@ -1254,6 +1459,40 @@
       }
     },
     {
+      "name": "OwnerRegistry",
+      "docs": [
+        "PDA qui compte le nombre d'agents enregistres par un owner",
+        "Seeds: [b\"owner\", owner_wallet.key()]",
+        "Limite : max 10 agents par wallet owner"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "docs": [
+              "Cle publique du wallet owner"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "agent_count",
+            "docs": [
+              "Nombre d'agents enregistres par cet owner"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "Bump du PDA"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
       "name": "RegisterAgentParams",
       "type": {
         "kind": "struct",
@@ -1275,6 +1514,10 @@
           {
             "name": "endpoint",
             "type": "string"
+          },
+          {
+            "name": "stake_amount",
+            "type": "u64"
           }
         ]
       }
@@ -1357,6 +1600,53 @@
               "Score calcule (0-10000, diviser par 100 pour %)"
             ],
             "type": "u64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "Bump du PDA"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "StakeVault",
+      "docs": [
+        "PDA vault qui stocke le stake d'un agent",
+        "Seeds: [b\"vault\", agent_wallet.key()]"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agent_wallet",
+            "docs": [
+              "Cle publique du wallet agent associe"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "docs": [
+              "Cle publique du owner qui a depose le stake"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "stake_amount",
+            "docs": [
+              "Montant du stake en lamports"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "deposited_at",
+            "docs": [
+              "Timestamp du depot"
+            ],
+            "type": "i64"
           },
           {
             "name": "bump",

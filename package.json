@@ -8,8 +8,32 @@
     "test:program": "anchor test",
     "dev:api": "cd app && npm run dev",
     "dev:web": "cd web && npm run dev",
-    "dev:agents": "cd agents-api && npm run dev",
     "demo": "cd simulation && npm run demo",
-    "install:all": "npm install && cd app && npm install && cd ../web && npm install && cd ../simulation && npm install && cd ../agents-api && npm install"
+    "install:all": "npm install && cd app && npm install && cd ../web && npm install && cd ../simulation && npm install"
+  },
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hugothomas9/agentnet.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/hugothomas9/agentnet/issues"
+  },
+  "homepage": "https://github.com/hugothomas9/agentnet#readme",
+  "devDependencies": {
+    "@coral-xyz/anchor": "^0.32.1",
+    "@solana/web3.js": "^1.98.4",
+    "@types/chai": "^5.2.3",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^25.6.1",
+    "chai": "^4.5.0",
+    "mocha": "^10.8.2",
+    "ts-mocha": "^10.1.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
   }
 }

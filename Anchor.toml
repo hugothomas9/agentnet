@@ -4,8 +4,14 @@
 resolution = true
 skip-lint = false
 
+[programs.localnet]
+agentnet = "GhBy186FiszBKF6ga9iG5nVQnEZNRKAnd6oPsbVW5jNp"
+
 [programs.devnet]
-agentnet = "BY89n9pF3xkZzz5GN1pfaqzZU8NMYHqfBCNAeSyFVsSd"
+agentnet = "GhBy186FiszBKF6ga9iG5nVQnEZNRKAnd6oPsbVW5jNp"
+
+[test]
+startup_wait = 15000
 
 [registry]
 url = "https://api.apr.dev"
@@ -15,4 +21,4 @@ cluster = "Devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
-test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+test = "NODE_OPTIONS='--no-experimental-strip-types' npx ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"

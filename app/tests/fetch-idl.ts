@@ -10,7 +10,7 @@ import { AnchorProvider, Program, Wallet } from "@coral-xyz/anchor";
 import fs from "fs";
 import path from "path";
 
-const PROGRAM_ID = "BY89n9pF3xkZzz5GN1pfaqzZU8NMYHqfBCNAeSyFVsSd";
+const PROGRAM_ID = "GhBy186FiszBKF6ga9iG5nVQnEZNRKAnd6oPsbVW5jNp";
 const RPC = "https://api.devnet.solana.com";
 const IDL_PATH = path.join(__dirname, "..", "src", "idl", "agentnet.json");
 

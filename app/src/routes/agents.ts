@@ -492,10 +492,100 @@ agentsRouter.post("/:pubkey/collect", async (req, res) => {
   }
 });
 
-agentsRouter.put("/:pubkey", async (req, res) => {
+agentsRouter.post("/:pubkey/deactivate", verifyAgentSignature, async (req, res) => {
   try {
     const agentWallet = new PublicKey(req.params.pubkey);
     const [agentPda] = getAgentPDA(agentWallet);
+
+    const agent = await fetchAgent(agentPda);
+    if (!agent) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+
+    const callerPubkey = (req as any).agentPubkey as string;
+    if (callerPubkey !== agent.owner) {
+      res.status(403).json({ error: "Forbidden: only the owner can deactivate an agent" });
+      return;
+    }
+
+    if (agent.status === "suspended") {
+      res.status(400).json({ error: "Agent is already suspended" });
+      return;
+    }
+
+    const serverKp = getServerKeypair();
+    const program = getProgram(serverKp);
+
+    const sig = await program.methods
+      .updateAgent({ capabilities: null, endpoint: null, status: { suspended: {} }, version: null })
+      .accounts({ owner: serverKp.publicKey, agent: agentPda })
+      .rpc();
+
+    res.json({ success: true, txSignature: sig });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+agentsRouter.post("/:pubkey/reactivate", verifyAgentSignature, async (req, res) => {
+  try {
+    const agentWallet = new PublicKey(req.params.pubkey);
+    const [agentPda] = getAgentPDA(agentWallet);
+
+    const agent = await fetchAgent(agentPda);
+    if (!agent) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+
+    const callerPubkey = (req as any).agentPubkey as string;
+    if (callerPubkey !== agent.owner) {
+      res.status(403).json({ error: "Forbidden: only the owner can reactivate an agent" });
+      return;
+    }
+
+    if (agent.status === "active") {
+      res.status(400).json({ error: "Agent is already active" });
+      return;
+    }
+
+    if (agent.status === "deprecated") {
+      res.status(400).json({ error: "Deprecated agents cannot be reactivated" });
+      return;
+    }
+
+    const serverKp = getServerKeypair();
+    const program = getProgram(serverKp);
+
+    const sig = await program.methods
+      .updateAgent({ capabilities: null, endpoint: null, status: { active: {} }, version: null })
+      .accounts({ owner: serverKp.publicKey, agent: agentPda })
+      .rpc();
+
+    res.json({ success: true, txSignature: sig });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+agentsRouter.put("/:pubkey", verifyAgentSignature, async (req, res) => {
+  try {
+    const agentWallet = new PublicKey(req.params.pubkey);
+    const [agentPda] = getAgentPDA(agentWallet);
+
+    const agent = await fetchAgent(agentPda);
+    if (!agent) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+
+    const callerPubkey = (req as any).agentPubkey as string;
+    if (callerPubkey !== agent.owner && callerPubkey !== agent.agentWallet) {
+      res.status(403).json({ error: "Forbidden: not the owner of this agent" });
+      return;
+    }
+
     const { capabilities, endpoint, status, version } = req.body;
 
     // Validation endpoint si modifie

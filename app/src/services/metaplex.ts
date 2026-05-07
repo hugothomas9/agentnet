@@ -8,8 +8,14 @@ import {
   generateSigner,
   signerIdentity,
   createSignerFromKeypair,
+  createNoopSigner,
   publicKey as umiPubkey,
 } from "@metaplex-foundation/umi";
+import {
+  toWeb3JsInstruction,
+  toWeb3JsKeypair,
+} from "@metaplex-foundation/umi-web3js-adapters";
+import { Connection, PublicKey, Transaction } from "@solana/web3.js";
 import { config } from "../config";
 import { AgentMetadata } from "../types";
 import { getServerKeypair } from "./solana";
@@ -58,6 +64,70 @@ export async function mintAgentNFT(
   }).sendAndConfirm(umi);
 
   return assetSigner.publicKey.toString();
+}
+
+/**
+ * Construit la transaction de mint NFT sans l'envoyer.
+ * Le payer est le wallet de l'utilisateur (il signera côté frontend avec Phantom).
+ * Le backend signe uniquement avec l'asset keypair (nouveau NFT).
+ */
+export async function buildMintNFTTransaction(
+  payerPubkey: string,
+  ownerPubkey: string,
+  metadata: Pick<AgentMetadata, "name" | "capabilities" | "endpoint" | "version">
+): Promise<{ serializedTx: string; nftMint: string }> {
+  // UMI avec l'utilisateur comme identity (noop — il signera côté frontend)
+  const umi = createUmi(config.solanaRpcUrl);
+  const userSigner = createNoopSigner(umiPubkey(payerPubkey));
+  umi.use(signerIdentity(userSigner));
+
+  const assetSigner = generateSigner(umi);
+
+  const uri = `data:application/json;base64,${Buffer.from(
+    JSON.stringify({
+      name: metadata.name,
+      description: `AgentNet AI Agent — v${metadata.version}`,
+      attributes: [
+        { trait_type: "capabilities", value: metadata.capabilities.join(",") },
+        { trait_type: "endpoint", value: metadata.endpoint },
+        { trait_type: "version", value: metadata.version },
+      ],
+    })
+  ).toString("base64")}`;
+
+  // Construire les instructions Metaplex Core
+  const builder = create(umi, {
+    asset: assetSigner,
+    name: metadata.name,
+    uri,
+    owner: umiPubkey(ownerPubkey),
+  });
+
+  const umiInstructions = builder.items.map((item) => item.instruction);
+  const web3Instructions = umiInstructions.map((ix) => toWeb3JsInstruction(ix));
+
+  // Transaction web3.js avec le user comme feePayer
+  const connection = new Connection(config.solanaRpcUrl, "confirmed");
+  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+
+  const tx = new Transaction({
+    feePayer: new PublicKey(payerPubkey),
+    blockhash,
+    lastValidBlockHeight,
+  });
+  tx.add(...web3Instructions);
+
+  // Signer avec l'asset keypair (le seul signer côté serveur)
+  const assetKeypair = toWeb3JsKeypair(assetSigner);
+  tx.partialSign(assetKeypair);
+
+  // Sérialiser sans exiger toutes les signatures (le user signera côté frontend)
+  const serialized = tx.serialize({ requireAllSignatures: false });
+
+  return {
+    serializedTx: Buffer.from(serialized).toString("base64"),
+    nftMint: assetSigner.publicKey.toString(),
+  };
 }
 
 export async function getAgentNFT(mintAddress: string): Promise<AgentNFTData | null> {

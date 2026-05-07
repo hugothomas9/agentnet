@@ -3,10 +3,7 @@
 import { DelegationLog } from "@/types";
 import { useAgentNetContext } from "@/context/AgentNetContext";
 import { StatusBadge } from "./StatusBadge";
-
-function shortenAddress(address: string): string {
-  return `${address.slice(0, 4)}...${address.slice(-4)}`;
-}
+import { shortenAddress } from "@/lib/solana";
 
 function timeAgo(timestamp: number): string {
   const seconds = Math.floor(Date.now() / 1000 - timestamp);

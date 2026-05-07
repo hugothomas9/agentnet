@@ -1,21 +1,36 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useAgentNetContext, RankedAgent } from "@/context/AgentNetContext";
+import { shortenAddress } from "@/lib/solana";
+
+const CAPABILITIES_LIST = [
+  "analysis", "automation", "code", "communication",
+  "data", "monitoring", "planning", "report",
+  "research", "summarization", "translation", "writing",
+];
 
 export default function LeaderboardPage() {
   const { agents, leaderboard, loading, error } = useAgentNetContext();
   const [capFilter, setCapFilter] = useState("");
-  const [minTasks, setMinTasks] = useState("");
+  const [minTasks, setMinTasks] = useState(0);
+
+  // Collect all capabilities from agents, sorted
+  const allCaps = useMemo(() => {
+    const set = new Set<string>();
+    agents.forEach((a) => a.capabilities.forEach((c) => set.add(c.toLowerCase())));
+    CAPABILITIES_LIST.forEach((c) => set.add(c));
+    return Array.from(set).sort();
+  }, [agents]);
 
   // Client-side filtering
   const filtered = leaderboard.filter((entry) => {
-    if (minTasks && entry.tasksCompleted < parseInt(minTasks)) return false;
+    if (entry.tasksCompleted < minTasks) return false;
     if (capFilter) {
       const agent = agents.find((a) => a.agentWallet === entry.agent);
       if (!agent) return false;
       return agent.capabilities.some((c) =>
-        c.toLowerCase().includes(capFilter.toLowerCase())
+        c.toLowerCase() === capFilter.toLowerCase()
       );
     }
     return true;
@@ -54,8 +69,12 @@ export default function LeaderboardPage() {
           <input
             type="number"
             placeholder="Min tasks"
-            value={minTasks}
-            onChange={(e) => setMinTasks(e.target.value)}
+            value={minTasks || ""}
+            min={0}
+            onChange={(e) => {
+              const val = parseInt(e.target.value);
+              setMinTasks(isNaN(val) || val < 0 ? 0 : val);
+            }}
             className="px-3 py-1.5 text-sm rounded-lg border border-subtle bg-secondary text-primary placeholder:text-muted focus:outline-none focus:border-[var(--accent)] w-28"
           />
         </div>
@@ -206,6 +225,3 @@ export default function LeaderboardPage() {
   );
 }
 
-function shortenAddress(address: string): string {
-  return `${address.slice(0, 4)}...${address.slice(-4)}`;
-}

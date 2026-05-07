@@ -10,3 +10,6 @@ test-ledger/
 *.untracked-backup-*
 
 lancelot/*
+# Agent keystore (secret keys)
+app/.agent-keystore.json
+.agent-keystore.json

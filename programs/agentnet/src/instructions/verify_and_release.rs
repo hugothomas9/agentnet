@@ -23,7 +23,7 @@ pub struct VerifyAndRelease<'info> {
     )]
     pub escrow: Account<'info, Escrow>,
 
-    /// PDA Agent de l'executant — pour lire l'adresse owner
+    /// PDA Agent de l'executant
     #[account(
         seeds = [b"agent", escrow.executor.as_ref()],
         bump = executor_agent.bump,
@@ -62,12 +62,12 @@ pub struct VerifyAndRelease<'info> {
     )]
     pub interaction_pair: Account<'info, InteractionPair>,
 
-    /// CHECK: Wallet du proprietaire de l'executant — recoit le paiement
+    /// CHECK: Wallet de l'agent executant — recoit le paiement directement
     #[account(
         mut,
-        constraint = executor_owner.key() == executor_agent.owner @ AgentNetError::UnauthorizedOwner,
+        constraint = executor_wallet.key() == escrow.executor @ AgentNetError::UnauthorizedOwner,
     )]
-    pub executor_owner: UncheckedAccount<'info>,
+    pub executor_wallet: UncheckedAccount<'info>,
 
     /// CHECK: Wallet treasury AgentNet — verifie contre la constante TREASURY
     #[account(
@@ -113,9 +113,9 @@ pub(crate) fn handler(ctx: Context<VerifyAndRelease>) -> Result<()> {
     let commission = escrow.amount * 10 / 10000;
     let payment = escrow.amount - commission;
 
-    // Transferer le paiement au proprietaire de l'executant
+    // Transferer le paiement au wallet de l'agent executant
     **ctx.accounts.escrow.to_account_info().try_borrow_mut_lamports()? -= payment;
-    **ctx.accounts.executor_owner.to_account_info().try_borrow_mut_lamports()? += payment;
+    **ctx.accounts.executor_wallet.to_account_info().try_borrow_mut_lamports()? += payment;
 
     // Transferer la commission au treasury
     **ctx.accounts.escrow.to_account_info().try_borrow_mut_lamports()? -= commission;
@@ -130,8 +130,6 @@ pub(crate) fn handler(ctx: Context<VerifyAndRelease>) -> Result<()> {
     executor_rep.tasks_completed += 1;
 
     // Calculer le delai de soumission (submitted_at - created_at)
-    // Note : mesure le temps entre creation de l'escrow et soumission du resultat,
-    // pas le temps d'execution reel de la tache
     if let Some(submitted_at) = escrow.submitted_at {
         let submission_delay = submitted_at.saturating_sub(escrow.created_at) as u64;
         executor_rep.total_execution_time += submission_delay;

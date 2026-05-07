@@ -177,14 +177,6 @@ escrowRouter.post("/:id/release", async (req, res) => {
       : [executor, requester];
     const [interactionPair] = getInteractionPairPDA(pairAgentA, pairAgentB);
 
-    // Recuperer le owner de l'agent executant (different du agent_wallet)
-    const executorAgentData = await fetchAgent(executorAgent);
-    if (!executorAgentData) {
-      res.status(404).json({ error: "Executor agent not found on-chain" });
-      return;
-    }
-    const executorOwner = new PublicKey(executorAgentData.owner);
-
     if (!config.treasuryWallet) {
       res.status(500).json({ error: "TREASURY_WALLET not configured" });
       return;
@@ -204,7 +196,7 @@ escrowRouter.post("/:id/release", async (req, res) => {
         pairAgentA,
         pairAgentB,
         interactionPair,
-        executorOwner,
+        executorWallet: executor,
         treasury: new PublicKey(config.treasuryWallet),
         systemProgram: SystemProgram.programId,
       })

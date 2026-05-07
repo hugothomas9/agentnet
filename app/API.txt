@@ -428,7 +428,7 @@ GET /reputation/:pubkey/history
   NOTES TECHNIQUES
 ────────────────────────────────────────────────────────────────────────────────
 
-  Programme Anchor  : BY89n9pF3xkZzz5GN1pfaqzZU8NMYHqfBCNAeSyFVsSd (devnet)
+  Programme Anchor  : GhBy186FiszBKF6ga9iG5nVQnEZNRKAnd6oPsbVW5jNp (devnet)
   Commission        : 0.1% (10 bps) prélevée à la libération de l'escrow
   NFT standard      : Metaplex Core (pas Bubblegum)
   Wallets agents    : Gérés par Privy (server-side wallets)

@@ -46,6 +46,20 @@ export function getEscrowPDA(requester: PublicKey, executor: PublicKey, taskId: 
   );
 }
 
+export function getStakeVaultPDA(agentWallet: PublicKey): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("vault"), agentWallet.toBuffer()],
+    PROGRAM_ID
+  );
+}
+
+export function getOwnerRegistryPDA(owner: PublicKey): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("owner"), owner.toBuffer()],
+    PROGRAM_ID
+  );
+}
+
 export function getInteractionPairPDA(agentA: PublicKey, agentB: PublicKey): [PublicKey, number] {
   const [a, b] = Buffer.compare(agentA.toBuffer(), agentB.toBuffer()) <= 0
     ? [agentA, agentB]

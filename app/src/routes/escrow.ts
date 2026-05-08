@@ -28,11 +28,21 @@ import {
   getEscrowPDA,
   getInteractionPairPDA,
   fetchEscrow,
+  fetchAllEscrows,
   fetchAgent,
 } from "../services/solana";
 import { config } from "../config";
 
 export const escrowRouter = Router();
+
+escrowRouter.get("/", async (_req, res) => {
+  try {
+    const escrows = await fetchAllEscrows();
+    res.json({ escrows });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Failed to fetch escrows" });
+  }
+});
 
 escrowRouter.post("/create", verifyAgentSignature, async (req, res) => {
   try {

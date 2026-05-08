@@ -27,23 +27,25 @@ const CONFIG = {
   apiUrl: "http://localhost:3001",
 
   // Public key of the wallet that will own the NFT.
-  ownerPubkey: "76ovFqT2nQtAAPtJCSKN1Xe8qxGt53YUD9nRdQKb3MQv",
+  // *** REMPLACE PAR TON WALLET PHANTOM ICI ***
+  ownerPubkey: "A3XPbriTAyatrPZiVVQNbZcG1dX3nPeTyQXuJN1rGPrx",
 
   agent: {
-    name: "Business ID Orchestrator Agent",
+    // Orchestrateur principal : reçoit l'idée startup, découvre les agents,
+    // crée les escrows, collecte les résultats, assemble la réponse finale.
+    // demo.md : OrchestratorAgent
+    name: "Business-ID-Orchestrator",
     version: "1.0.0",
     capabilities: [
-      "demo-app-agent",
-      "startup-idea-analysis",
-      "startup-concept-evaluation",
-      "business-opportunity-analysis",
-      "value-proposition-analysis",
-      "startup-strategy-insights",
+      "planning",    // décompose la mission en sous-tâches
+      "analysis",    // analyse l'idée startup
+      "automation",  // orchestre le flux agent-to-agent
+      "research",    // recherche les meilleurs agents via /agents/recommend
     ],
     endpoint: "http://localhost:4000/agents/business-id-orchestrator/execute",
-    pricePerRequestSol: 0.002,
+    // Stake de l'agent orchestrateur : 1.2 SOL en lamports
+    stakeAmount: 1_200_000_000,
   },
-
   // Choose one:
   // - privy: API creates a Privy Solana wallet for the agent.
   // - publicKey: you provide the agent wallet public key.
@@ -135,7 +137,7 @@ async function run() {
   console.log(`Agent:      ${CONFIG.agent.name} v${CONFIG.agent.version}`);
   console.log(`Capabilities: ${CONFIG.agent.capabilities.join(", ")}`);
   console.log(`Endpoint:   ${CONFIG.agent.endpoint}`);
-  console.log(`Price:      ${CONFIG.agent.pricePerRequestSol} SOL/request`);
+  console.log(`Stake:      ${CONFIG.agent.stakeAmount} lamports`);
   console.log(`Wallet mode: ${CONFIG.agentWallet.mode}`);
   if (agentWallet.agentWalletPubkey) {
     console.log(`Agent wallet: ${agentWallet.agentWalletPubkey}`);

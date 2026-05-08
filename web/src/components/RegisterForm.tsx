@@ -12,9 +12,19 @@ import { getConnection, solToLamports, shortenAddress, getSolscanUrl } from "@/l
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
 const ALLOWED_CAPABILITIES = [
+  // Génériques
   "research", "translation", "analysis", "report",
   "code", "data", "summarization", "monitoring",
   "writing", "planning", "communication", "automation",
+  // Orchestration & délégation
+  "orchestration", "delegation", "synthesis", "coordination",
+  // Market & business
+  "market-research", "competitor-analysis", "trend-detection", "opportunity-scoring",
+  "startup-analysis", "business-validation", "positioning",
+  // Customer & persona
+  "persona-building", "segmentation", "pain-point-analysis", "user-profiling",
+  // Produit & MVP
+  "mvp-planning", "roadmap-building", "feature-prioritization", "risk-assessment",
 ];
 
 const MIN_STAKE_SOL = 0.05;
@@ -379,6 +389,16 @@ export function RegisterForm() {
             <p className="text-xs text-muted">
               NFT Mint: <span className="font-mono text-primary text-[10px]">{result.nftMint}</span>
             </p>
+            {result.walletId && (
+              <p className="text-xs text-muted">
+                Wallet ID (Privy): <span className="font-mono text-primary text-[10px] break-all">{result.walletId}</span>
+              </p>
+            )}
+            {!result.walletId && (
+              <p className="text-xs text-muted italic">
+                Wallet généré localement — clé stockée dans le keystore serveur.
+              </p>
+            )}
             {result.walletId && (
               <div className="mt-2">
                 <CollectButton agentWallet={result.agentWallet} walletId={result.walletId} />

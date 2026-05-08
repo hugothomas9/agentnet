@@ -36,12 +36,16 @@ app.post(
   "/agents/business-id-orchestrator/execute",
   executeRoute(executeBusinessIdOrchestratorAgent)
 );
+app.head("/agents/business-id-orchestrator/execute", (_req, res) => res.sendStatus(200));
 
 app.post("/agents/market-scout/execute", executeRoute(executeMarketScoutAgent));
+app.head("/agents/market-scout/execute", (_req, res) => res.sendStatus(200));
 
 app.post("/agents/customer-persona/execute", executeRoute(executeCustomerPersonaAgent));
+app.head("/agents/customer-persona/execute", (_req, res) => res.sendStatus(200));
 
 app.post("/agents/mvp-planner/execute", executeRoute(executeMvpPlannerAgent));
+app.head("/agents/mvp-planner/execute", (_req, res) => res.sendStatus(200));
 
 app.use((_req, res) => {
   res.status(404).json({ error: "Route not found" });

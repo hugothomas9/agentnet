@@ -92,7 +92,7 @@ export async function signRequest(
 /**
  * Minimal base58 encoder (Bitcoin alphabet)
  */
-function encodeBase58(bytes: Uint8Array): string {
+export function encodeBase58(bytes: Uint8Array): string {
   const ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
   const digits = [0];
 

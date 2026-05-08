@@ -12,15 +12,15 @@ import { createAgentWallet } from "../services/privy";
 const KEYSTORE_PATH = path.join(__dirname, "../../.agent-keystore.json");
 
 interface KeystoreEntry {
-  secretKey: string;
+  secretKey: string;  // base58, vide "" si wallet Privy
   owner: string;
+  walletId?: string;  // Privy walletId, présent si wallet Privy
 }
 
 function loadKeystore(): Record<string, KeystoreEntry> {
   try {
     if (fs.existsSync(KEYSTORE_PATH)) {
       const data = JSON.parse(fs.readFileSync(KEYSTORE_PATH, "utf-8"));
-      // Migration: si l'ancien format (string directe), convertir
       const result: Record<string, KeystoreEntry> = {};
       for (const [k, v] of Object.entries(data)) {
         if (typeof v === "string") {
@@ -35,12 +35,12 @@ function loadKeystore(): Record<string, KeystoreEntry> {
   return {};
 }
 
-function saveToKeystore(agentWallet: string, secretKeyBase58: string, ownerPubkey: string) {
+function saveToKeystore(agentWallet: string, secretKeyBase58: string, ownerPubkey: string, walletId?: string) {
   const store = loadKeystore();
-  store[agentWallet] = { secretKey: secretKeyBase58, owner: ownerPubkey };
+  store[agentWallet] = { secretKey: secretKeyBase58, owner: ownerPubkey, ...(walletId ? { walletId } : {}) };
   fs.writeFileSync(KEYSTORE_PATH, JSON.stringify(store, null, 2));
 }
-import { mintAgentNFT, buildMintNFTTransaction } from "../services/metaplex";
+import { mintAgentNFT, buildMintNFTTransaction, getAgentNFT } from "../services/metaplex";
 import {
   getProgram,
   getServerKeypair,
@@ -61,9 +61,19 @@ export const agentsRouter = Router();
 const NAME_REGEX = /^[a-zA-Z0-9_-]+$/;
 const VERSION_REGEX = /^\d+\.\d+\.\d+$/;
 const ALLOWED_CAPABILITIES = [
+  // Génériques
   "research", "translation", "analysis", "report",
   "code", "data", "summarization", "monitoring",
   "writing", "planning", "communication", "automation",
+  // Orchestration & délégation
+  "orchestration", "delegation", "synthesis", "coordination",
+  // Market & business
+  "market-research", "competitor-analysis", "trend-detection", "opportunity-scoring",
+  "startup-analysis", "business-validation", "positioning",
+  // Customer & persona
+  "persona-building", "segmentation", "pain-point-analysis", "user-profiling",
+  // Produit & MVP
+  "mvp-planning", "roadmap-building", "feature-prioritization", "risk-assessment",
 ];
 const MIN_STAKE_LAMPORTS = 50_000_000; // 0.05 SOL
 
@@ -138,6 +148,16 @@ async function checkEndpointHealth(endpoint: string): Promise<boolean> {
 
 // ─── Routes ────────────────────────────────────────────────────────────────────
 
+agentsRouter.post("/recommend", async (req, res) => {
+  try {
+    const { recommendBestAgentForQuestion } = await import("../services/recommendation");
+    const result = await recommendBestAgentForQuestion(req.body);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 agentsRouter.get("/", async (_req, res) => {
   try {
     const agents = await fetchAllAgents();
@@ -157,14 +177,34 @@ agentsRouter.get("/my/:owner", async (req, res) => {
     const keystore = loadKeystore();
     const allAgents = await fetchAllAgents();
 
-    // Filtrer : agents dont le keystore a owner == ownerPubkey
-    const myWallets = new Set(
+    // Primary: keystore lookup (instant)
+    const keystoreWallets = new Set(
       Object.entries(keystore)
         .filter(([, entry]) => entry.owner === ownerPubkey)
         .map(([wallet]) => wallet)
     );
 
-    const myAgents = allAgents.filter((a) => myWallets.has(a.agentWallet));
+    // Secondary: for agents not in keystore, check NFT ownership on-chain
+    const myAgents: (typeof allAgents[0])[] = [];
+    await Promise.all(
+      allAgents.map(async (a) => {
+        if (keystoreWallets.has(a.agentWallet)) {
+          myAgents.push(a);
+          return;
+        }
+        try {
+          const nft = await getAgentNFT(a.nftMint);
+          if (nft?.owner === ownerPubkey) {
+            myAgents.push(a);
+            // Cache in keystore so next call is instant
+            saveToKeystore(a.agentWallet, "", ownerPubkey);
+          }
+        } catch {
+          // Silently skip NFT check failures
+        }
+      })
+    );
+
     res.json({ agents: myAgents });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -327,9 +367,18 @@ agentsRouter.post("/register", async (req, res) => {
       agentWalletStr = agentWalletPubkey;
       walletId = undefined;
     } else {
-      const privy = await createAgentWallet();
-      agentWalletStr = privy.publicKey;
-      walletId = privy.walletId;
+      try {
+        const privy = await createAgentWallet();
+        agentWalletStr = privy.publicKey;
+        walletId = privy.walletId;
+      } catch (privyErr: any) {
+        // Fallback : génère un keypair local si Privy est indisponible
+        console.warn("[register] Privy unavailable, using local keypair fallback:", privyErr?.message);
+        const localKp = Keypair.generate();
+        agentWalletStr = localKp.publicKey.toBase58();
+        walletId = undefined;
+        saveToKeystore(agentWalletStr, bs58.encode(localKp.secretKey), owner.toBase58());
+      }
     }
     const agentWallet = new PublicKey(agentWalletStr);
 
@@ -388,9 +437,14 @@ agentsRouter.post("/register", async (req, res) => {
       })
       .rpc();
 
-    // Stocker le secret key en mode test pour le collect
+    // Toujours enregistrer dans le keystore pour que /agents/my/:owner fonctionne
+    // - Privy : secretKey vide, walletId présent
+    // - Local fallback : secretKey présent (déjà sauvegardé dans le fallback)
+    // - Mode test (agentSecretKey fourni) : secretKey explicite
     if (agentSecretKey) {
       saveToKeystore(agentWalletStr, agentSecretKey, owner.toBase58());
+    } else if (walletId) {
+      saveToKeystore(agentWalletStr, "", owner.toBase58(), walletId);
     }
 
     res.json({
@@ -431,6 +485,13 @@ agentsRouter.post("/:pubkey/collect", async (req, res) => {
       return;
     }
 
+    // Vérifier que ownerPubkey est bien le propriétaire du NFT
+    const nft = await getAgentNFT(agent.nftMint);
+    if (!nft || nft.owner !== ownerPubkey) {
+      res.status(403).json({ error: "Forbidden: you are not the owner of this agent" });
+      return;
+    }
+
     const connection = getConnection();
     const balance = await connection.getBalance(agentWalletPubkey);
 
@@ -458,18 +519,32 @@ agentsRouter.post("/:pubkey/collect", async (req, res) => {
 
     let signedTx: Transaction;
 
-    if (walletId) {
+    // Résoudre le walletId : depuis le body, le keystore, ou Privy par adresse
+    const keystoreEntry = loadKeystore()[agentWalletPubkey.toBase58()];
+    let resolvedWalletId = walletId || keystoreEntry?.walletId;
+
+    if (!resolvedWalletId) {
+      // Fallback : chercher dans Privy par adresse publique
+      try {
+        const { findWalletIdByAddress } = await import("../services/privy");
+        resolvedWalletId = (await findWalletIdByAddress(agentWalletPubkey.toBase58())) ?? undefined;
+        if (resolvedWalletId) {
+          // Mettre en cache dans le keystore
+          saveToKeystore(agentWalletPubkey.toBase58(), "", keystoreEntry?.owner ?? "", resolvedWalletId);
+        }
+      } catch {}
+    }
+
+    if (resolvedWalletId) {
       // Mode Privy
       const { signTransaction: privySign } = await import("../services/privy");
-      signedTx = await privySign(walletId, tx);
+      signedTx = await privySign(resolvedWalletId, tx);
     } else {
-      // Mode test — utiliser le keystore local
-      const keystore = loadKeystore();
-      const entry = keystore[agentWalletPubkey.toBase58()];
-      const secretBase58 = entry?.secretKey;
+      // Mode local keypair — utiliser le keystore
+      const secretBase58 = keystoreEntry?.secretKey;
       if (!secretBase58) {
         res.status(400).json({
-          error: "No walletId (Privy) and no stored key for this agent. Agent was not created with agentSecretKey.",
+          error: "No signing key for this agent. Provide walletId or register with agentSecretKey.",
         });
         return;
       }
@@ -492,7 +567,36 @@ agentsRouter.post("/:pubkey/collect", async (req, res) => {
   }
 });
 
-agentsRouter.post("/:pubkey/deactivate", verifyAgentSignature, async (req, res) => {
+/**
+ * Vérifie qu'une signature Phantom autorise l'action sur l'agent.
+ * Message signé : `${action}:${agentPubkey}:${timestamp}`
+ * Retourne le ownerPubkey vérifié ou null.
+ */
+async function verifyPhantomOwnership(
+  agentNftMint: string,
+  ownerPubkey: string,
+  signature: string,
+  timestamp: number,
+  action: string,
+  agentPubkey: string
+): Promise<string | null> {
+  // Vérifier timestamp (60s max)
+  const now = Math.floor(Date.now() / 1000);
+  if (Math.abs(now - timestamp) > 60) return null;
+
+  // Vérifier signature Ed25519
+  const { verifyEd25519Signature } = await import("../middleware/auth");
+  const message = new TextEncoder().encode(`${action}:${agentPubkey}:${timestamp}`);
+  if (!verifyEd25519Signature(ownerPubkey, message, signature)) return null;
+
+  // Vérifier propriété NFT on-chain
+  const nft = await getAgentNFT(agentNftMint);
+  if (!nft || nft.owner !== ownerPubkey) return null;
+
+  return ownerPubkey;
+}
+
+agentsRouter.post("/:pubkey/deactivate", async (req, res) => {
   try {
     const agentWallet = new PublicKey(req.params.pubkey);
     const [agentPda] = getAgentPDA(agentWallet);
@@ -503,9 +607,17 @@ agentsRouter.post("/:pubkey/deactivate", verifyAgentSignature, async (req, res) 
       return;
     }
 
-    const callerPubkey = (req as any).agentPubkey as string;
-    if (callerPubkey !== agent.owner) {
-      res.status(403).json({ error: "Forbidden: only the owner can deactivate an agent" });
+    const { ownerPubkey, signature, timestamp } = req.body as {
+      ownerPubkey: string;
+      signature: string;
+      timestamp: number;
+    };
+
+    const verified = await verifyPhantomOwnership(
+      agent.nftMint, ownerPubkey, signature, timestamp, "deactivate", req.params.pubkey
+    );
+    if (!verified) {
+      res.status(403).json({ error: "Forbidden: invalid signature or not the NFT owner" });
       return;
     }
 
@@ -528,7 +640,7 @@ agentsRouter.post("/:pubkey/deactivate", verifyAgentSignature, async (req, res) 
   }
 });
 
-agentsRouter.post("/:pubkey/reactivate", verifyAgentSignature, async (req, res) => {
+agentsRouter.post("/:pubkey/reactivate", async (req, res) => {
   try {
     const agentWallet = new PublicKey(req.params.pubkey);
     const [agentPda] = getAgentPDA(agentWallet);
@@ -539,9 +651,17 @@ agentsRouter.post("/:pubkey/reactivate", verifyAgentSignature, async (req, res) 
       return;
     }
 
-    const callerPubkey = (req as any).agentPubkey as string;
-    if (callerPubkey !== agent.owner) {
-      res.status(403).json({ error: "Forbidden: only the owner can reactivate an agent" });
+    const { ownerPubkey, signature, timestamp } = req.body as {
+      ownerPubkey: string;
+      signature: string;
+      timestamp: number;
+    };
+
+    const verified = await verifyPhantomOwnership(
+      agent.nftMint, ownerPubkey, signature, timestamp, "reactivate", req.params.pubkey
+    );
+    if (!verified) {
+      res.status(403).json({ error: "Forbidden: invalid signature or not the NFT owner" });
       return;
     }
 

@@ -77,30 +77,23 @@ export function AgentNetProvider({ children }: { children: ReactNode }) {
         return { ...entry, name: agent?.name };
       });
 
-      // Build transaction log from reputation data
-      const txs: DelegationLog[] = [];
-      const activeAgents = enrichedLb.filter((e) => e.tasksCompleted > 0);
-
-      for (let i = 0; i < activeAgents.length; i++) {
-        const executor = activeAgents[i];
-        for (let t = 0; t < executor.tasksCompleted; t++) {
-          const requesterIdx = (i + t + 1) % activeAgents.length;
-          const requester = activeAgents[requesterIdx];
-
-          txs.push({
-            timestamp: executor.lastUpdated - t * 11,
-            from: requester.agent,
-            to: executor.agent,
-            taskId: `task_${(executor.name || "agent").toLowerCase().replace(/\s/g, "_")}_${t}`,
-            amount:
-              Math.round(((executor.score / 10000) * 0.05 * (t + 1)) * 1000) /
-              1000,
-            status: "released",
-            txSignature: `onchain_${executor.agent.slice(0, 8)}_${t}`,
-          });
-        }
+      // Fetch real escrows from chain
+      let txs: DelegationLog[] = [];
+      try {
+        const escrowRes = await apiGet<{ escrows: Array<{ pda: string; requester: string; executor: string; taskId: string; amount: number; createdAt: number; status: string; }> }>("/escrow");
+        txs = (escrowRes.escrows || []).map((e) => ({
+          timestamp: e.createdAt,
+          from: e.requester,
+          to: e.executor,
+          taskId: e.taskId,
+          amount: Math.round((e.amount / 1_000_000_000) * 1000) / 1000,
+          status: e.status as DelegationLog["status"],
+          txSignature: e.pda,
+        }));
+        txs.sort((a, b) => b.timestamp - a.timestamp);
+      } catch {
+        // escrow fetch is non-critical
       }
-      txs.sort((a, b) => b.timestamp - a.timestamp);
 
       setAgents(fetchedAgents);
       setLeaderboard(enrichedLb);

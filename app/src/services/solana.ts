@@ -144,6 +144,29 @@ export async function fetchEscrow(pda: PublicKey): Promise<EscrowRecord | null> 
   }
 }
 
+export async function fetchAllEscrows(): Promise<(EscrowRecord & { pda: string })[]> {
+  const program = getProgram();
+  const accounts = await (program.account as any).escrow.all();
+  return accounts.map(({ publicKey, account }: any) => {
+    const resultHash = account.resultHash as number[] | null;
+    return {
+      pda: (publicKey as PublicKey).toBase58(),
+      requester: (account.requester as PublicKey).toBase58(),
+      executor: (account.executor as PublicKey).toBase58(),
+      taskId: account.taskId as string,
+      taskDescription: account.taskDescription as string,
+      amount: (account.amount as any).toNumber(),
+      deadline: (account.deadline as any).toNumber(),
+      createdAt: (account.createdAt as any).toNumber(),
+      resultHash: resultHash ? Buffer.from(resultHash).toString("hex") : null,
+      submittedAt: account.submittedAt ? (account.submittedAt as any).toNumber() : null,
+      gracePeriodStart: account.gracePeriodStart ? (account.gracePeriodStart as any).toNumber() : null,
+      gracePeriodDuration: (account.gracePeriodDuration as any).toNumber(),
+      status: mapEscrowStatus(account.status),
+    };
+  });
+}
+
 export async function fetchReputation(pda: PublicKey): Promise<ReputationMetrics | null> {
   try {
     const program = getProgram();

@@ -5,6 +5,10 @@ target/
 .env
 .anchor/
 test-ledger/
+.codex-runlogs/
+.agents
+.agents/
+**/.agents
 
 # Backups locaux d'IDL (generes automatiquement, pas utiles pour le repo)
 *.untracked-backup-*
@@ -13,3 +17,10 @@ lancelot/*
 # Agent keystore (secret keys)
 app/.agent-keystore.json
 .agent-keystore.json
+
+# Logs
+agents-api/logs/
+*.log
+
+# TypeScript build info
+*.tsbuildinfo

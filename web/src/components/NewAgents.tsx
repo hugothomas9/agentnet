@@ -13,6 +13,7 @@ export function NewAgents() {
   const { agents, loading } = useAgentNetContext();
 
   const newAgents = [...agents]
+    .filter((a) => a.status === "active")
     .sort((a, b) => b.registeredAt - a.registeredAt)
     .slice(0, 4);
 

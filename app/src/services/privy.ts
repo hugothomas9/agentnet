@@ -33,3 +33,13 @@ export async function getWalletPublicKey(walletId: string): Promise<string> {
   const wallet = await getClient().walletApi.getWallet({ id: walletId });
   return wallet.address;
 }
+
+export async function findWalletIdByAddress(address: string): Promise<string | null> {
+  try {
+    const { data: wallets } = await getClient().walletApi.getWallets({ chainType: "solana" });
+    const match = wallets.find((w: any) => w.address === address);
+    return match?.id ?? null;
+  } catch {
+    return null;
+  }
+}

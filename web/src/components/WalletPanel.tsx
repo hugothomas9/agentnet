@@ -9,6 +9,7 @@ import {
 } from "@solana/web3.js";
 import { useAgentNetContext } from "@/context/AgentNetContext";
 import { lamportsToSol, solToLamports } from "@/lib/solana";
+import { encodeBase58 } from "@/lib/api";
 import { AgentRecord } from "@/types";
 
 interface AgentBalance {
@@ -31,6 +32,51 @@ export function WalletPanel() {
   const [claimResult, setClaimResult] = useState<string | null>(null);
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [addAmount, setAddAmount] = useState("");
+  const [copied, setCopied] = useState<string | null>(null);
+  const [toggling, setToggling] = useState<string | null>(null);
+  const [toggleResult, setToggleResult] = useState<string | null>(null);
+
+  function copyToClipboard(text: string) {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(text);
+      setTimeout(() => setCopied(null), 1500);
+    });
+  }
+
+  const { signMessage } = useWallet();
+
+  async function handleToggleStatus(ab: AgentBalance) {
+    if (!publicKey || !signMessage) return;
+    const agentPubkey = ab.agent.agentWallet;
+    const isActive = ab.agent.status === "active";
+    const action = isActive ? "deactivate" : "reactivate";
+
+    setToggling(agentPubkey);
+    setToggleResult(null);
+    try {
+      const timestamp = Math.floor(Date.now() / 1000);
+      const message = new TextEncoder().encode(`${action}:${agentPubkey}:${timestamp}`);
+      const sigBytes = await signMessage(message);
+      const signature = encodeBase58(sigBytes);
+
+      const res = await fetch(`${API_URL}/agents/${agentPubkey}/${action}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ownerPubkey: publicKey.toBase58(), signature, timestamp }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setToggleResult(`Agent ${isActive ? "deactivated" : "reactivated"}`);
+        fetchMyAgents();
+      } else {
+        setToggleResult(data.error || `${action} failed`);
+      }
+    } catch (err: any) {
+      setToggleResult(err.message?.includes("User rejected") ? "Cancelled" : `Error: ${err.message?.slice(0, 50)}`);
+    } finally {
+      setToggling(null);
+    }
+  }
 
   const fetchMainBalance = useCallback(async () => {
     if (!publicKey) return;
@@ -263,10 +309,24 @@ export function WalletPanel() {
               <div
                 className="flex items-center gap-3 px-5 py-3 hover:bg-hover transition-colors"
               >
-                <div className="h-8 w-8 rounded-md border border-subtle flex items-center justify-center bg-secondary">
-                  <span className="text-xs font-bold text-accent">
-                    {ab.agent.name.slice(0, 2).toUpperCase()}
-                  </span>
+                <div className="relative h-8 w-8 flex-shrink-0">
+                  <div className="h-8 w-8 rounded-md border border-subtle flex items-center justify-center bg-secondary">
+                    <span className="text-xs font-bold text-accent">
+                      {ab.agent.name.slice(0, 2).toUpperCase()}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => handleToggleStatus(ab)}
+                    disabled={toggling === ab.agent.agentWallet || ab.agent.status === "deprecated"}
+                    title={ab.agent.status === "active" ? "Active — click to deactivate" : ab.agent.status === "suspended" ? "Suspended — click to reactivate" : "Deprecated"}
+                    className="absolute -top-1 -right-1 h-3 w-3 rounded-full border-2 border-[var(--bg)] disabled:cursor-default transition-transform hover:scale-125"
+                    style={{
+                      backgroundColor:
+                        toggling === ab.agent.agentWallet ? "#888" :
+                        ab.agent.status === "active" ? "#22c55e" :
+                        ab.agent.status === "suspended" ? "#ef4444" : "#888",
+                    }}
+                  />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
@@ -281,10 +341,16 @@ export function WalletPanel() {
                       ))}
                     </div>
                   </div>
-                  <p className="text-xs text-muted font-mono mt-0.5">
-                    {ab.agent.agentWallet.slice(0, 6)}...
-                    {ab.agent.agentWallet.slice(-4)}
-                  </p>
+                  <button
+                    onClick={() => copyToClipboard(ab.agent.agentWallet)}
+                    title={ab.agent.agentWallet}
+                    className="flex items-center gap-1 text-xs text-muted font-mono mt-0.5 hover:text-primary transition-colors"
+                  >
+                    {ab.agent.agentWallet.slice(0, 6)}...{ab.agent.agentWallet.slice(-4)}
+                    <span className="text-[10px]">
+                      {copied === ab.agent.agentWallet ? "✓" : "⎘"}
+                    </span>
+                  </button>
                 </div>
                 <div className="text-right flex items-center gap-2">
                   <p className="text-sm font-mono text-primary min-w-[80px]">
@@ -355,6 +421,11 @@ export function WalletPanel() {
       {claimResult && (
         <div className="mt-4 px-4 py-2 rounded-lg border border-subtle bg-secondary text-xs text-muted">
           {claimResult}
+        </div>
+      )}
+      {toggleResult && (
+        <div className="mt-2 px-4 py-2 rounded-lg border border-subtle bg-secondary text-xs text-muted">
+          {toggleResult}
         </div>
       )}
     </div>

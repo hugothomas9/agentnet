@@ -3,8 +3,9 @@
 import { useAgentNetContext } from "@/context/AgentNetContext";
 
 export function TrendingAgents() {
-  const { leaderboard, loading } = useAgentNetContext();
-  const top5 = leaderboard.slice(0, 5);
+  const { agents, leaderboard, loading } = useAgentNetContext();
+  const activeWallets = new Set(agents.filter((a) => a.status === "active").map((a) => a.agentWallet));
+  const top5 = leaderboard.filter((e) => activeWallets.has(e.agent)).slice(0, 5);
 
   return (
     <div className="card">

@@ -1,31 +1,46 @@
 import dotenv from "dotenv";
 dotenv.config();
 import { createHash } from "crypto";
+import * as fs from "fs";
+import * as path from "path";
 import { PrivyClient } from "@privy-io/server-auth";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import bs58 from "bs58";
 import { AgentExecutePayload, AgentExecutionContext, AgentExecutionResult } from "../types";
+
+const LOG_DIR = path.join(__dirname, "../../logs");
+const LOG_FILE = path.join(LOG_DIR, "demo-orchestrator.log");
+
+function log(line: string) {
+  const ts = new Date().toISOString();
+  const entry = `[${ts}] ${line}\n`;
+  process.stdout.write(entry);
+  try {
+    if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
+    fs.appendFileSync(LOG_FILE, entry);
+  } catch {}
+}
 
 const AGENTNET_API_URL = process.env.AGENTNET_API_URL ?? "http://localhost:3001";
 const LOCAL_AGENTS_API_URL = process.env.LOCAL_AGENTS_API_URL ?? "http://localhost:4000";
 const PRIVY_APP_ID = process.env.PRIVY_APP_ID ?? "";
 const PRIVY_APP_SECRET = process.env.PRIVY_APP_SECRET ?? "";
 const ORCHESTRATOR_WALLET_ID = process.env.ORCHESTRATOR_WALLET_ID ?? "";
-const ORCHESTRATOR_WALLET_ADDRESS = "HSPxw6tCLSnoUsn2nMHFe7qBCAp3kB6ZW2tYvtuJdK39";
+const ORCHESTRATOR_WALLET_ADDRESS = "4RuFNQJBCvzR2Bb1SnSTAnWDqykeoz6CeutvijR9kgWM";
 
-// Sub-agent wallet config — from AgentNet registration (info_agents.md)
+// Sub-agent wallet config — from AgentNet registration (.agents)
 const SUB_AGENT_CONFIG: Record<string, { walletId: string; walletAddress: string }> = {
   marketScout: {
-    walletId: "ym5um9hm47re9fnkcbvrff77",
-    walletAddress: "DL4E8cq9mZx9yhCQVj5VjmBiQ5uW7qctYQ7Vx3oLYgj6",
+    walletId: "zqymyxxx0cy00plkxw61mi75",
+    walletAddress: "FarsdC88mePaSb1oWRfC4E5Vrq6zUSCRQMpABXc9SS5f",
   },
   customerPersona: {
-    walletId: "r3pr77re1adsu1i8to3sn0i6",
-    walletAddress: "5GTD2WZ2M4PFzWjztkwWfbx4MWpS3KeG583uY3C9SQnk",
+    walletId: "whlbn8srnp0fdk7fj91fnmw3",
+    walletAddress: "HUWehDxFZpUhwA7NJN8oiY4ckM64gFRc42d7dDCFFXfq",
   },
   mvpPlanner: {
-    walletId: "zbs4pmwbt9lp1dy0yu361eol",
-    walletAddress: "8Y4ggvmXEceZLemYEqBmZn3Zku3gpz9PE4izEFM8FDJ9",
+    walletId: "u3pp60r5gkprvr3cba6vjfjd",
+    walletAddress: "5zN3zCs7v2BV2VHzNVctMgP9vmJEV3hjHET6mDQPu12C",
   },
 };
 
@@ -81,28 +96,28 @@ const EXPERT_TASKS: ExpertTask[] = [
   {
     key: "marketScout",
     label: "Market and competitor analysis",
-    agentnetCapabilities: ["market-research", "competitor-analysis", "positioning-analysis", "market-risk-detection", "startup-validation"],
+    agentnetCapabilities: ["market-research", "competitor-analysis", "trend-detection", "opportunity-scoring"],
     question:
       "Assess the market opportunity, competitor landscape, positioning gaps, and market risks for a SaaS startup helping French freelancers manage monthly administrative work.",
-    fallbackAgentName: "Market Scout Agent",
+    fallbackAgentName: "Market-Scout",
     fallbackEndpoint: `${LOCAL_AGENTS_API_URL}/agents/market-scout/execute`,
   },
   {
     key: "customerPersona",
     label: "Customer persona and segment analysis",
-    agentnetCapabilities: ["customer-persona", "target-segmentation", "ideal-user-profile", "pain-point-analysis", "customer-needs-analysis", "problem-urgency-assessment"],
+    agentnetCapabilities: ["persona-building", "segmentation", "pain-point-analysis", "user-profiling"],
     question:
       "Identify the ideal first customer, priority target segments, pain points, customer needs, and urgency level for a SaaS startup helping French freelancers manage monthly administrative work.",
-    fallbackAgentName: "Customer Persona Agent",
+    fallbackAgentName: "Customer-Persona",
     fallbackEndpoint: `${LOCAL_AGENTS_API_URL}/agents/customer-persona/execute`,
   },
   {
     key: "mvpPlanner",
     label: "MVP planning and execution strategy",
-    agentnetCapabilities: ["mvp-planning", "feature-prioritization", "product-roadmap", "execution-risk-analysis", "startup-product-strategy", "mvp-scope-definition"],
+    agentnetCapabilities: ["mvp-planning", "roadmap-building", "feature-prioritization", "risk-assessment"],
     question:
       "Define the MVP scope, feature priorities, product roadmap, success metrics, and execution risks for a SaaS startup helping French freelancers manage monthly administrative work.",
-    fallbackAgentName: "MVP Planner Agent",
+    fallbackAgentName: "MVP-Planner",
     fallbackEndpoint: `${LOCAL_AGENTS_API_URL}/agents/mvp-planner/execute`,
   },
 ];
@@ -120,10 +135,24 @@ export async function executeBusinessIdOrchestratorAgent(
     language: "en",
   };
 
+  log("\n══════════════════════════════════════════════");
+  log("  Business ID Orchestrator — starting");
+  log(`  Idea: ${startupIdea.slice(0, 80)}...`);
+  log("══════════════════════════════════════════════\n");
+
   // Create escrows sequentially to avoid concurrent tx conflicts on the orchestrator wallet
   const escrowPrep: Array<{ task: ExpertTask; recommendation: RecommendationResult; escrowPda: string | null; createTxSignature: string | null }> = [];
   for (const task of EXPERT_TASKS) {
+    log(`\n── [recommend] Task: "${task.label}"`);
+    log(`   Capabilities requested: ${task.agentnetCapabilities.join(", ")}`);
     const recommendation = await recommendExpert(task);
+    log(`   Source:    ${recommendation.source}`);
+    log(`   Agent:     ${recommendation.agentName}`);
+    log(`   AgentID:   ${recommendation.agentId ?? "none (fallback)"}`);
+    log(`   Endpoint:  ${recommendation.endpoint}`);
+    log(`   Score:     ${recommendation.matchScore ?? "—"}`);
+    log(`   Reason:    ${recommendation.reason}`);
+
     const subAgentConfig = SUB_AGENT_CONFIG[task.key];
     let escrowPda: string | null = null;
     let createTxSignature: string | null = null;
@@ -131,9 +160,12 @@ export async function executeBusinessIdOrchestratorAgent(
       const result = await createSubAgentEscrow(task.key, subAgentConfig.walletAddress, task.label);
       escrowPda = result.escrowPda;
       createTxSignature = result.txSignature;
-      console.log(`[escrow] Created for "${task.label}": ${escrowPda}`);
+      log(`\n── [escrow] Created for "${task.label}"`);
+      log(`   PDA:  ${escrowPda}`);
+      log(`   TX:   ${createTxSignature}`);
+      log(`   URL:  https://solscan.io/tx/${createTxSignature}?cluster=devnet`);
     } catch (err) {
-      console.error(`[escrow] Create failed for "${task.label}":`, err instanceof Error ? err.message : err);
+      log(`[ERROR] ── [escrow] ✗ Create FAILED for "${task.label}": ${err instanceof Error ? err.message : err}`);
     }
     escrowPrep.push({ task, recommendation, escrowPda, createTxSignature });
   }
@@ -144,6 +176,14 @@ export async function executeBusinessIdOrchestratorAgent(
       executeAgentAndSettle(task, recommendation, escrowPda, createTxSignature, basePayload)
     )
   );
+
+  log("\n══════════════════════════════════════════════");
+  log("  Business ID Orchestrator — completed");
+  for (const { task, recommendation, escrow } of expertResults) {
+    const status = escrow.releaseTxSignature ? "✓ released" : escrow.escrowPda ? "⚠ escrow open" : "✗ no escrow";
+    log(`  ${status}  ${task.label} → ${recommendation.agentName} [${recommendation.source}]`);
+  }
+  log("══════════════════════════════════════════════\n");
 
   const report = generateHardcodedPdfReport(startupIdea, expertResults);
 
@@ -235,15 +275,20 @@ async function executeAgentAndSettle(
         escrowPda,
         resultHash
       );
-      console.log(`[escrow] Result submitted for "${task.label}": ${submitTxSignature}`);
+      log(`\n── [escrow] Result submitted for "${task.label}"`);
+      log(`   Hash: ${resultHash.slice(0, 16)}...`);
+      log(`   TX:   ${submitTxSignature}`);
+      log(`   URL:  https://solscan.io/tx/${submitTxSignature}?cluster=devnet`);
 
       // Wait for grace period to expire before releasing
       await sleep((GRACE_PERIOD_SECONDS + 2) * 1000);
 
       releaseTxSignature = await releaseSubAgentEscrow(escrowPda);
-      console.log(`[escrow] Released for "${task.label}": ${releaseTxSignature}`);
+      log(`\n── [escrow] Released for "${task.label}"`);
+      log(`   TX:   ${releaseTxSignature}`);
+      log(`   URL:  https://solscan.io/tx/${releaseTxSignature}?cluster=devnet`);
     } catch (err) {
-      console.error(`[escrow] Submit/release failed for "${task.label}":`, err instanceof Error ? err.message : err);
+      log(`[ERROR] ── [escrow] ✗ Submit/release FAILED for "${task.label}": ${err instanceof Error ? err.message : err}`);
     }
   }
 

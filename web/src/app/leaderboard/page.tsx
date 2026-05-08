@@ -12,8 +12,10 @@ const CAPABILITIES_LIST = [
 
 export default function LeaderboardPage() {
   const { agents, leaderboard, loading, error } = useAgentNetContext();
+  const [copied, setCopied] = useState<string | null>(null);
   const [capFilter, setCapFilter] = useState("");
   const [minTasks, setMinTasks] = useState(0);
+  const [activeOnly, setActiveOnly] = useState(true);
 
   // Collect all capabilities from agents, sorted
   const allCaps = useMemo(() => {
@@ -23,8 +25,14 @@ export default function LeaderboardPage() {
     return Array.from(set).sort();
   }, [agents]);
 
+  const activeWallets = useMemo(
+    () => new Set(agents.filter((a) => a.status === "active").map((a) => a.agentWallet)),
+    [agents]
+  );
+
   // Client-side filtering
   const filtered = leaderboard.filter((entry) => {
+    if (activeOnly && !activeWallets.has(entry.agent)) return false;
     if (entry.tasksCompleted < minTasks) return false;
     if (capFilter) {
       const agent = agents.find((a) => a.agentWallet === entry.agent);
@@ -55,10 +63,20 @@ export default function LeaderboardPage() {
           <p className="text-sm text-muted mt-1">
             {error
               ? error
-              : `${leaderboard.length} agents ranked by reputation score`}
+              : `${filtered.length} agent${filtered.length !== 1 ? "s" : ""} ranked by reputation score`}
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setActiveOnly((v) => !v)}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+              activeOnly
+                ? "border-[var(--accent)] text-[var(--accent)] bg-[var(--accent)]/10"
+                : "border-subtle text-muted hover:text-primary"
+            }`}
+          >
+            {activeOnly ? "Active only" : "All agents"}
+          </button>
           <input
             type="text"
             placeholder="Filter by capability..."
@@ -158,9 +176,18 @@ export default function LeaderboardPage() {
                           <p className="text-sm font-medium text-primary">
                             {getAgentName(entry)}
                           </p>
-                          <p className="text-xs text-muted font-mono mt-0.5">
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(entry.agent);
+                              setCopied(entry.agent);
+                              setTimeout(() => setCopied(null), 1500);
+                            }}
+                            className="flex items-center gap-1 text-xs text-muted font-mono mt-0.5 hover:text-primary transition-colors"
+                            title={entry.agent}
+                          >
                             {shortenAddress(entry.agent)}
-                          </p>
+                            <span className="text-[10px]">{copied === entry.agent ? "✓" : "⎘"}</span>
+                          </button>
                         </div>
                       </td>
                       <td className="py-3 px-4">

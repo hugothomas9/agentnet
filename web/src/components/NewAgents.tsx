@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useAgentNetContext } from "@/context/AgentNetContext";
 
 function timeAgo(timestamp: number): string {
@@ -34,8 +35,9 @@ export function NewAgents() {
           </div>
         ) : (
           newAgents.map((agent) => (
-            <div
+            <Link
               key={agent.agentWallet}
+              href={`/agent/${agent.agentWallet}`}
               className="flex items-center gap-3 px-5 py-3 hover:bg-hover transition-colors"
             >
               <div className="h-9 w-9 rounded-lg border border-subtle flex items-center justify-center bg-secondary">
@@ -61,7 +63,7 @@ export function NewAgents() {
                   {timeAgo(agent.registeredAt)}
                 </p>
               </div>
-            </div>
+            </Link>
           ))
         )}
       </div>

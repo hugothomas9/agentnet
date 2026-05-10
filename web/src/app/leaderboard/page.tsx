@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import { useAgentNetContext, RankedAgent } from "@/context/AgentNetContext";
 import { shortenAddress } from "@/lib/solana";
 
@@ -173,9 +174,12 @@ export default function LeaderboardPage() {
                       </td>
                       <td className="py-3 px-4">
                         <div>
-                          <p className="text-sm font-medium text-primary">
+                          <Link
+                            href={`/agent/${entry.agent}`}
+                            className="text-sm font-medium text-primary hover:text-accent transition-colors"
+                          >
                             {getAgentName(entry)}
-                          </p>
+                          </Link>
                           <button
                             onClick={() => {
                               navigator.clipboard.writeText(entry.agent);

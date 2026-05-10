@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useState, useEffect, useRef } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
@@ -54,9 +55,7 @@ export function Navbar() {
         <div className="flex h-14 items-center justify-between">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5">
-            <div className="h-7 w-7 rounded-md border border-subtle flex items-center justify-center">
-              <span className="text-xs font-bold text-accent">AN</span>
-            </div>
+            <Image src="/logo.svg" alt="AgentNet" width={28} height={28} className="rounded-md" />
             <span className="text-base font-semibold text-primary">
               AgentNet
             </span>

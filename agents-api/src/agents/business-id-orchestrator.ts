@@ -11,13 +11,36 @@ import { AgentExecutePayload, AgentExecutionContext, AgentExecutionResult } from
 const LOG_DIR = path.join(__dirname, "../../logs");
 const LOG_FILE = path.join(LOG_DIR, "demo-orchestrator.log");
 
-function log(line: string) {
-  const ts = new Date().toISOString();
-  const entry = `[${ts}] ${line}\n`;
-  process.stdout.write(entry);
+const C = {
+  reset:  "\x1b[0m",
+  dim:    "\x1b[2m",
+  yellow: "\x1b[33m",
+  green:  "\x1b[32m",
+  cyan:   "\x1b[36m",
+  red:    "\x1b[31m",
+};
+
+function ts(): string {
+  const d = new Date();
+  const h = String(d.getHours()).padStart(2, "0");
+  const m = String(d.getMinutes()).padStart(2, "0");
+  const s = String(d.getSeconds()).padStart(2, "0");
+  return `${h}:${m}:${s}`;
+}
+
+function short(str: string, len = 8): string {
+  return str.length > len ? str.slice(0, len) + "..." : str;
+}
+
+function log(line: string, color = "") {
+  const prefix = `${C.dim}[${ts()}]${C.reset} `;
+  const colored = color ? `${color}${line}${C.reset}` : line;
+  const console_entry = `${prefix}${colored}\n`;
+  const file_entry = `[${ts()}] ${line}\n`;
+  process.stdout.write(console_entry);
   try {
     if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
-    fs.appendFileSync(LOG_FILE, entry);
+    fs.appendFileSync(LOG_FILE, file_entry);
   } catch {}
 }
 
@@ -135,23 +158,17 @@ export async function executeBusinessIdOrchestratorAgent(
     language: "en",
   };
 
-  log("\n══════════════════════════════════════════════");
-  log("  Business ID Orchestrator — starting");
-  log(`  Idea: ${startupIdea.slice(0, 80)}...`);
-  log("══════════════════════════════════════════════\n");
+  log("══════════════════════════════════", C.yellow);
+  log("  Business ID Orchestrator");
+  log("══════════════════════════════════", C.yellow);
 
   // Create escrows sequentially to avoid concurrent tx conflicts on the orchestrator wallet
   const escrowPrep: Array<{ task: ExpertTask; recommendation: RecommendationResult; escrowPda: string | null; createTxSignature: string | null }> = [];
   for (const task of EXPERT_TASKS) {
-    log(`\n── [recommend] Task: "${task.label}"`);
-    log(`   Capabilities requested: ${task.agentnetCapabilities.join(", ")}`);
+    log(`── recommend  ${task.label}`, C.yellow);
     const recommendation = await recommendExpert(task);
-    log(`   Source:    ${recommendation.source}`);
-    log(`   Agent:     ${recommendation.agentName}`);
-    log(`   AgentID:   ${recommendation.agentId ?? "none (fallback)"}`);
-    log(`   Endpoint:  ${recommendation.endpoint}`);
-    log(`   Score:     ${recommendation.matchScore ?? "—"}`);
-    log(`   Reason:    ${recommendation.reason}`);
+    const sourceTag = recommendation.source === "agentnet" ? `${C.green}✓ agentnet${C.reset}` : `${C.dim}fallback${C.reset}`;
+    log(`   → ${recommendation.agentName}  ${sourceTag}`);
 
     const subAgentConfig = SUB_AGENT_CONFIG[task.key];
     let escrowPda: string | null = null;
@@ -160,12 +177,12 @@ export async function executeBusinessIdOrchestratorAgent(
       const result = await createSubAgentEscrow(task.key, subAgentConfig.walletAddress, task.label);
       escrowPda = result.escrowPda;
       createTxSignature = result.txSignature;
-      log(`\n── [escrow] Created for "${task.label}"`);
-      log(`   PDA:  ${escrowPda}`);
-      log(`   TX:   ${createTxSignature}`);
-      log(`   URL:  https://solscan.io/tx/${createTxSignature}?cluster=devnet`);
+      log(`── escrow  ${task.label}`, C.yellow);
+      log(`   PDA  ${C.cyan}${short(escrowPda)}${C.reset}`);
+      log(`   TX   ${C.cyan}${short(createTxSignature ?? "")}${C.reset}`);
     } catch (err) {
-      log(`[ERROR] ── [escrow] ✗ Create FAILED for "${task.label}": ${err instanceof Error ? err.message : err}`);
+      log(`── escrow  ✗ failed  ${task.label}`, C.red);
+      log(`   ${err instanceof Error ? err.message : err}`);
     }
     escrowPrep.push({ task, recommendation, escrowPda, createTxSignature });
   }
@@ -177,13 +194,17 @@ export async function executeBusinessIdOrchestratorAgent(
     )
   );
 
-  log("\n══════════════════════════════════════════════");
-  log("  Business ID Orchestrator — completed");
-  for (const { task, recommendation, escrow } of expertResults) {
-    const status = escrow.releaseTxSignature ? "✓ released" : escrow.escrowPda ? "⚠ escrow open" : "✗ no escrow";
-    log(`  ${status}  ${task.label} → ${recommendation.agentName} [${recommendation.source}]`);
+  log("══════════════════════════════════", C.yellow);
+  for (const { recommendation, escrow } of expertResults) {
+    if (escrow.releaseTxSignature) {
+      log(`  ${C.green}✓${C.reset} ${recommendation.agentName.padEnd(18)} released`);
+    } else if (escrow.escrowPda) {
+      log(`  ⚠ ${recommendation.agentName.padEnd(18)} escrow open`);
+    } else {
+      log(`  ${C.red}✗${C.reset} ${recommendation.agentName.padEnd(18)} no escrow`);
+    }
   }
-  log("══════════════════════════════════════════════\n");
+  log("══════════════════════════════════", C.yellow);
 
   const report = generateHardcodedPdfReport(startupIdea, expertResults);
 
@@ -275,20 +296,18 @@ async function executeAgentAndSettle(
         escrowPda,
         resultHash
       );
-      log(`\n── [escrow] Result submitted for "${task.label}"`);
-      log(`   Hash: ${resultHash.slice(0, 16)}...`);
-      log(`   TX:   ${submitTxSignature}`);
-      log(`   URL:  https://solscan.io/tx/${submitTxSignature}?cluster=devnet`);
+      log(`── submitted  ${task.label}`, C.yellow);
+      log(`   TX   ${C.cyan}${short(submitTxSignature ?? "")}${C.reset}`);
 
       // Wait for grace period to expire before releasing
       await sleep((GRACE_PERIOD_SECONDS + 2) * 1000);
 
       releaseTxSignature = await releaseSubAgentEscrow(escrowPda);
-      log(`\n── [escrow] Released for "${task.label}"`);
-      log(`   TX:   ${releaseTxSignature}`);
-      log(`   URL:  https://solscan.io/tx/${releaseTxSignature}?cluster=devnet`);
+      log(`── released  ${task.label}`, C.green);
+      log(`   TX   ${C.cyan}${short(releaseTxSignature)}${C.reset}  ${C.dim}0.003 SOL paid${C.reset}`);
     } catch (err) {
-      log(`[ERROR] ── [escrow] ✗ Submit/release FAILED for "${task.label}": ${err instanceof Error ? err.message : err}`);
+      log(`── escrow  ✗ failed  ${task.label}`, C.red);
+      log(`   ${err instanceof Error ? err.message : err}`);
     }
   }
 

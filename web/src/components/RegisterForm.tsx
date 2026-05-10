@@ -56,6 +56,7 @@ export function RegisterForm() {
   const [customCap, setCustomCap] = useState("");
   const [endpoint, setEndpoint] = useState("");
   const [stakeSOL, setStakeSOL] = useState(MIN_STAKE_SOL.toString());
+  const [priceSOL, setPriceSOL] = useState("");
 
   // State
   const [step, setStep] = useState<Step>("idle");
@@ -95,6 +96,10 @@ export function RegisterForm() {
   const stakeNum = parseFloat(stakeSOL);
   const stakeError = isNaN(stakeNum) || stakeNum < MIN_STAKE_SOL
     ? `Minimum ${MIN_STAKE_SOL} SOL` : null;
+
+  const priceNum = parseFloat(priceSOL);
+  const priceError = priceSOL && (isNaN(priceNum) || priceNum <= 0)
+    ? "Price must be greater than 0" : null;
 
   const isFormValid =
     name && !nameError &&
@@ -148,6 +153,7 @@ export function RegisterForm() {
         capabilities,
         endpoint,
         ownerPubkey: publicKey.toBase58(),
+        ...(priceSOL && priceNum > 0 ? { pricePerRequestSol: priceNum } : {}),
       });
 
       // Désérialiser, signer avec Phantom, envoyer
@@ -178,6 +184,7 @@ export function RegisterForm() {
         ownerPubkey: publicKey.toBase58(),
         stakeAmount: stakeLamports,
         nftMintAddress: mintRes.nftMint,
+        ...(priceSOL && priceNum > 0 ? { pricePerRequestSol: priceNum } : {}),
       });
 
       setResult({
@@ -330,6 +337,30 @@ export function RegisterForm() {
           className="w-full rounded-lg border border-subtle bg-secondary px-3 py-2 text-sm text-primary placeholder:text-muted focus:outline-none focus:border-accent disabled:opacity-50"
         />
         {endpointError && <p className="mt-1 text-xs" style={{ color: "var(--error)" }}>{endpointError}</p>}
+      </div>
+
+      {/* Price per request */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-secondary mb-1">
+          Price per Request <span className="text-muted">(optional)</span>
+        </label>
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            value={priceSOL}
+            onChange={(e) => setPriceSOL(e.target.value)}
+            min={0}
+            step={0.001}
+            placeholder="0.01"
+            disabled={step === "minting" || step === "registering"}
+            className="w-full rounded-lg border border-subtle bg-secondary px-3 py-2 text-sm text-primary placeholder:text-muted focus:outline-none focus:border-accent disabled:opacity-50"
+          />
+          <span className="text-sm text-muted whitespace-nowrap">SOL</span>
+        </div>
+        {priceError && <p className="mt-1 text-xs" style={{ color: "var(--error)" }}>{priceError}</p>}
+        <p className="mt-1 text-xs text-muted">
+          How much you charge per task. Requesters will see this before creating escrows.
+        </p>
       </div>
 
       {/* Stake */}

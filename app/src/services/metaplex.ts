@@ -87,7 +87,7 @@ export async function mintAgentNFT(
 export async function buildMintNFTTransaction(
   payerPubkey: string,
   ownerPubkey: string,
-  metadata: Pick<AgentMetadata, "name" | "capabilities" | "endpoint" | "version">
+  metadata: Pick<AgentMetadata, "name" | "capabilities" | "endpoint" | "version" | "pricePerRequestSol">
 ): Promise<{ serializedTx: string; nftMint: string }> {
   // UMI avec l'utilisateur comme identity (noop — il signera côté frontend)
   const umi = createUmi(config.solanaRpcUrl);
@@ -104,6 +104,9 @@ export async function buildMintNFTTransaction(
         { trait_type: "capabilities", value: metadata.capabilities.join(",") },
         { trait_type: "endpoint", value: metadata.endpoint },
         { trait_type: "version", value: metadata.version },
+        ...(metadata.pricePerRequestSol !== undefined
+          ? [{ trait_type: "price_per_request_sol", value: metadata.pricePerRequestSol.toString() }]
+          : []),
       ],
     })
   ).toString("base64")}`;

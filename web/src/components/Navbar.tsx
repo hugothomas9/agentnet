@@ -88,7 +88,7 @@ export function Navbar() {
                 href="/wallet"
                 className="text-sm text-secondary hover:text-primary transition-colors"
               >
-                Wallet
+                My Agents
               </Link>
             )}
           </div>

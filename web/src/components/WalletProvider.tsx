@@ -16,6 +16,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const wallets = useMemo(() => [new PhantomWalletAdapter()], []);
 
   return (
+    // @ts-expect-error React type mismatch with wallet adapter
     <ConnectionProvider endpoint={endpoint}>
       <SolanaWalletProvider wallets={wallets} autoConnect>
         <WalletModalProvider>{children}</WalletModalProvider>

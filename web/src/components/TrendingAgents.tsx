@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useAgentNetContext } from "@/context/AgentNetContext";
 
 export function TrendingAgents() {
@@ -26,8 +27,9 @@ export function TrendingAgents() {
           </div>
         ) : (
           top5.map((entry, index) => (
-            <div
+            <Link
               key={entry.agent}
+              href={`/agent/${entry.agent}`}
               className="flex items-center gap-3 px-5 py-3 hover:bg-hover transition-colors"
             >
               <span className="text-sm font-mono text-muted w-5">
@@ -49,7 +51,7 @@ export function TrendingAgents() {
                   {entry.uniqueRequesters} clients
                 </p>
               </div>
-            </div>
+            </Link>
           ))
         )}
       </div>

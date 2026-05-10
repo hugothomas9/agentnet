@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import {
   PublicKey,
@@ -330,9 +331,12 @@ export function WalletPanel() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-primary">
+                    <Link
+                      href={`/agent/${ab.agent.agentWallet}`}
+                      className="text-sm font-medium text-primary hover:text-accent transition-colors"
+                    >
                       {ab.agent.name}
-                    </p>
+                    </Link>
                     <div className="flex gap-1">
                       {ab.agent.capabilities.slice(0, 2).map((c) => (
                         <span key={c} className="badge badge-accent">

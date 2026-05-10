@@ -90,6 +90,8 @@ POST   /escrow/:id/submit         → soumettre resultat (auth requise)
 POST   /escrow/:id/release        → liberer escrow
 POST   /escrow/:id/contest        → contester (auth requise)
 GET    /escrow/:id                → detail escrow
+GET    /escrow/agent/:pubkey      → escrows impliquant cet agent (executor ou requester)
+                                    Response: { asExecutor: DelegationLog[], asRequester: DelegationLog[] }
 
 GET    /reputation/:pubkey        → metriques d'un agent
 GET    /reputation/leaderboard    → classement

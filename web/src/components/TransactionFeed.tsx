@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { DelegationLog } from "@/types";
 import { useAgentNetContext } from "@/context/AgentNetContext";
 import { StatusBadge } from "./StatusBadge";
@@ -26,17 +27,17 @@ function TransactionRow({
         {timeAgo(tx.timestamp)}
       </td>
       <td className="py-3 px-4">
-        <span className="text-sm font-medium text-primary">
+        <Link href={`/agent/${tx.from}`} className="text-sm font-medium text-primary hover:text-accent transition-colors">
           {getAgentName(tx.from)}
-        </span>
+        </Link>
       </td>
       <td className="py-3 px-4 text-muted">
         <ArrowIcon />
       </td>
       <td className="py-3 px-4">
-        <span className="text-sm font-medium text-primary">
+        <Link href={`/agent/${tx.to}`} className="text-sm font-medium text-primary hover:text-accent transition-colors">
           {getAgentName(tx.to)}
-        </span>
+        </Link>
       </td>
       <td className="py-3 px-4 text-sm text-secondary font-mono">
         {tx.taskId.replace("task_", "").replaceAll("_", " ")}

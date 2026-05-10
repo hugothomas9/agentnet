@@ -24,3 +24,7 @@ agents-api/logs/
 
 # TypeScript build info
 *.tsbuildinfo
+
+# Claude Code
+.claude/
+skills-lock.json

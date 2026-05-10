@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import {
   PublicKey,
@@ -295,7 +296,7 @@ export function WalletPanel() {
                       onClick={() => setExpandedAgent(isExpanded ? null : ab.agent.agentWallet)}
                     >
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-primary">{ab.agent.name}</p>
+                        <Link href={`/agent/${ab.agent.agentWallet}`} className="text-sm font-medium text-primary hover:text-accent transition-colors">{ab.agent.name}</Link>
                         {score !== undefined && (
                           <span className="text-xs font-mono text-muted">
                             {((score / 10000) * 100).toFixed(0)}%

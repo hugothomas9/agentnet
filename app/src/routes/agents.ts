@@ -276,12 +276,13 @@ agentsRouter.get("/:pubkey", async (req, res) => {
  */
 agentsRouter.post("/prepare-mint", async (req, res) => {
   try {
-    const { name, version, capabilities, endpoint, ownerPubkey } = req.body as {
+    const { name, version, capabilities, endpoint, ownerPubkey, pricePerRequestSol } = req.body as {
       name: string;
       version: string;
       capabilities: string[];
       endpoint: string;
       ownerPubkey: string;
+      pricePerRequestSol?: number;
     };
 
     if (!ownerPubkey) {
@@ -301,7 +302,7 @@ agentsRouter.post("/prepare-mint", async (req, res) => {
     const { serializedTx, nftMint } = await buildMintNFTTransaction(
       ownerPubkey,
       ownerPubkey,
-      { name, version, capabilities: normalizedCapabilities, endpoint }
+      { name, version, capabilities: normalizedCapabilities, endpoint, pricePerRequestSol }
     );
 
     res.json({ serializedTx, nftMint });
@@ -326,16 +327,17 @@ agentsRouter.post("/prepare-mint", async (req, res) => {
  */
 agentsRouter.post("/register", async (req, res) => {
   try {
-    const { name, version, capabilities, endpoint, ownerPubkey, agentWalletPubkey, agentSecretKey, stakeAmount, nftMintAddress: preExistingNftMint } = req.body as {
+    const { name, version, capabilities, endpoint, ownerPubkey, agentWalletPubkey, agentSecretKey, stakeAmount, nftMintAddress: preExistingNftMint, pricePerRequestSol } = req.body as {
       name: string;
       version: string;
       capabilities: string[];
       endpoint: string;
       ownerPubkey?: string;
       agentWalletPubkey?: string;
-      agentSecretKey?: string; // base58, mode test — stocké pour le collect
+      agentSecretKey?: string;
       stakeAmount?: number;
       nftMintAddress?: string;
+      pricePerRequestSol?: number;
     };
 
     // Validation stricte des inputs
@@ -405,7 +407,7 @@ agentsRouter.post("/register", async (req, res) => {
       nftMintAddress = preExistingNftMint;
     } else {
       nftMintAddress = await mintAgentNFT(owner.toBase58(), agentWalletStr, {
-        name, version, capabilities: normalizedCapabilities, endpoint,
+        name, version, capabilities: normalizedCapabilities, endpoint, pricePerRequestSol,
       });
     }
     const nftMint = new PublicKey(nftMintAddress);

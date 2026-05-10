@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { WalletProvider } from "@/components/WalletProvider";
 import { AgentNetProvider } from "@/context/AgentNetContext";
 import { Navbar } from "@/components/Navbar";
+import { SoftAurora } from "@/components/SoftAurora";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -18,6 +19,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
+        <SoftAurora />
         <WalletProvider>
           <AgentNetProvider>
             <Navbar />

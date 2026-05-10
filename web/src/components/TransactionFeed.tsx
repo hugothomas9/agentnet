@@ -109,7 +109,7 @@ export function TransactionFeed() {
                 </td>
               </tr>
             ) : (
-              transactions.slice(0, 20).map((tx, i) => (
+              transactions.slice(0, 9).map((tx, i) => (
                 <TransactionRow
                   key={`${tx.txSignature}-${i}`}
                   tx={tx}

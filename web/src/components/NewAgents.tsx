@@ -16,7 +16,7 @@ export function NewAgents() {
   const newAgents = [...agents]
     .filter((a) => a.status === "active")
     .sort((a, b) => b.registeredAt - a.registeredAt)
-    .slice(0, 4);
+    .slice(0, 5);
 
   return (
     <div className="card">
@@ -34,28 +34,22 @@ export function NewAgents() {
             No agents registered
           </div>
         ) : (
-          newAgents.map((agent) => (
+          newAgents.map((agent, index) => (
             <Link
               key={agent.agentWallet}
               href={`/agent/${agent.agentWallet}`}
               className="flex items-center gap-3 px-5 py-3 hover:bg-hover transition-colors"
             >
-              <div className="h-9 w-9 rounded-lg border border-subtle flex items-center justify-center bg-secondary">
-                <span className="text-xs font-bold text-accent">
-                  {agent.name.slice(0, 2).toUpperCase()}
-                </span>
-              </div>
+              <span className="text-sm font-mono text-muted w-5">
+                #{index + 1}
+              </span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-primary truncate">
                   {agent.name}
                 </p>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  {agent.capabilities.slice(0, 2).map((cap) => (
-                    <span key={cap} className="badge badge-accent">
-                      {cap}
-                    </span>
-                  ))}
-                </div>
+                <p className="text-xs text-muted mt-0.5">
+                  {agent.capabilities.slice(0, 2).join(", ")}
+                </p>
               </div>
               <div className="text-right">
                 <span className="badge badge-success">new</span>

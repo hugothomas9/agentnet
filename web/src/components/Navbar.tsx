@@ -82,6 +82,12 @@ export function Navbar() {
             >
               Leaderboard
             </Link>
+            <Link
+              href="/about"
+              className="text-sm text-secondary hover:text-primary transition-colors"
+            >
+              About
+            </Link>
             {connected && (
               <Link
                 href="/wallet"

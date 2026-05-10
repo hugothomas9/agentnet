@@ -43,7 +43,7 @@ export default function LeaderboardPage() {
       );
     }
     return true;
-  });
+  }).slice(0, 20);
 
   function getAgentName(entry: RankedAgent): string {
     if (entry.name) return entry.name;

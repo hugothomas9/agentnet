@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Connection,
   LAMPORTS_PER_SOL,
@@ -66,6 +66,7 @@ declare global {
 
 export function AgentOrchestrationDemo() {
   const [prompt, setPrompt] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [status, setStatus] = useState("");
   const [txSignature, setTxSignature] = useState("");
   const [isPaying, setIsPaying] = useState(false);
@@ -185,11 +186,17 @@ export function AgentOrchestrationDemo() {
 
       <form className="chat-composer" onSubmit={handleSubmit}>
         <textarea
+          ref={textareaRef}
           aria-label="Business test prompt"
           value={prompt}
-          onChange={(event) => setPrompt(event.target.value)}
+          onChange={(event) => {
+            setPrompt(event.target.value);
+            const el = event.target;
+            el.style.height = "auto";
+            el.style.height = `${el.scrollHeight}px`;
+          }}
           placeholder={placeholder}
-          rows={1}
+          spellCheck={false}
         />
         <button type="submit" disabled={prompt.trim().length === 0 || isPaying} aria-label="Pay and send prompt">
           {isPaying ? "Processing" : `Pay ${REQUEST_PRICE_SOL} devnet SOL`}

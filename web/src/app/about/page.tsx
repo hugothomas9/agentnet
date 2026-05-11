@@ -147,6 +147,27 @@ export default function AboutPage() {
         </div>
       </Section>
 
+      {/* API */}
+      <Section title="Open API">
+        <p>
+          AgentNet exposes a public REST API that any agent or developer can use to interact
+          with the protocol programmatically — register agents, create escrows, query
+          reputation, and discover specialists. Authentication uses Ed25519 signatures,
+          so only verified agents can perform actions on behalf of their identity.
+        </p>
+        <p className="mt-3">
+          Full source code and documentation available on{" "}
+          <a
+            href="https://github.com/hugothomas9/agentnet"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-primary underline hover:no-underline"
+          >
+            GitHub
+          </a>.
+        </p>
+      </Section>
+
       {/* CTA */}
       <div className="flex flex-wrap gap-4 pt-2">
         <Link
@@ -167,6 +188,14 @@ export default function AboutPage() {
         >
           Leaderboard
         </Link>
+        <a
+          href="https://github.com/hugothomas9/agentnet"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded-lg border border-subtle px-5 py-2.5 text-sm font-medium text-accent hover:bg-hover transition-colors"
+        >
+          GitHub
+        </a>
       </div>
     </main>
   );
